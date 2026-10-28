@@ -10,7 +10,9 @@
     width: 100%;
     height: 100%;
     overflow: hidden;
-    background: #FAF7EF;
+    background-color: #F5F1E9;
+    background-image: conic-gradient(#E9E3D8 25%, #F5F1E9 0 50%, #E9E3D8 0 75%, #F5F1E9 0);
+    background-size: 36px 36px;
   }
   #stage { width: 100%; height: 100%; }
 </style>
@@ -21,10 +23,11 @@
 (function () {
   "use strict";
 
+  var homeMode = new URLSearchParams(window.location.search).has("home");
   var viewer = null;
-  var yaw = -18;
+  var yaw = homeMode ? -22 : -18;
   var pitch = 8;
-  var distance = 65;
+  var distance = homeMode ? 46 : 65;
 
   function post(payload) {
     try {
@@ -74,6 +77,26 @@
     }
   }
 
+  function applyCheckerBackground(w, h) {
+    if (!viewer) { return; }
+    var canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    var context = canvas.getContext("2d");
+    context.fillStyle = "#F5F1E9";
+    context.fillRect(0, 0, w, h);
+    context.fillStyle = "#E9E3D8";
+    var size = 18;
+    for (var y = 0; y < h; y += size) {
+      for (var x = 0; x < w; x += size) {
+        if (((x / size) + (y / size)) % 2 === 0) {
+          context.fillRect(x, y, size, size);
+        }
+      }
+    }
+    viewer.loadBackground(canvas);
+  }
+
   /** 懒建渲染器；容器尺寸变了就重建一次。 */
   function ensureViewer() {
     if (viewer) { return viewer; }
@@ -87,10 +110,11 @@
       width: w,
       height: h,
       preserveDrawingBuffer: true,
-      background: 0xFAF7EF
+      background: 0xF5F1E9
     });
+    applyCheckerBackground(w, h);
 
-    viewer.controls.enableZoom = true;
+    viewer.controls.enableZoom = !homeMode;
     viewer.controls.enableRotate = true;
     viewer.controls.enablePan = false;
     viewer.controls.addEventListener("change", function () {
@@ -100,31 +124,44 @@
       pitch = Math.asin(position.y / distance) * 180 / Math.PI;
     });
 
-    try { viewer.animation = new skinview3d.IdleAnimation(); }
+    try { viewer.animation = homeMode
+      ? new skinview3d.WalkingAnimation()
+      : new skinview3d.IdleAnimation(); }
     catch (e) { /* 没动画也能渲染 */ }
 
     return viewer;
   }
 
   window.skinBridge = {
-    setSkin: function (dataUrl, model) {
+    setSkin: function (dataUrl, model, requestId) {
       var v;
       try { v = ensureViewer(); }
       catch (e) { post({ type: "error", message: "创建渲染器失败: " + e }); return; }
       var m = model === "slim" ? "slim" : "classic";
+      if (homeMode) { v.playerObject.cape.visible = false; }
 
       var img = new Image();
       img.onload = function () {
         try {
           v.loadSkin(img, { model: m });
           renderAndSend("skin");
-          post({ type: "loaded" });
+          post({ type: "loaded", requestId: requestId });
         } catch (e) {
           post({ type: "error", message: "loadSkin: " + e });
         }
       };
       img.onerror = function () {
         post({ type: "error", message: "皮肤图片解码失败" });
+      };
+      img.src = dataUrl;
+    },
+
+    setCape: function (dataUrl) {
+      if (!viewer) { return; }
+      var img = new Image();
+      img.onload = function () {
+        try { viewer.loadCape(img); renderAndSend("cape"); }
+        catch (e) { post({ type: "cape-error", message: "loadCape: " + e }); }
       };
       img.src = dataUrl;
     },
@@ -143,9 +180,9 @@
     },
 
     reset: function () {
-      yaw = -18;
+      yaw = homeMode ? -22 : -18;
       pitch = 8;
-      distance = 65;
+      distance = homeMode ? 46 : 65;
       renderAndSend("reset");
     },
 
@@ -164,12 +201,19 @@
       var h = Math.max(120, window.innerHeight);
       try {
         viewer.setSize(w, h);
+        applyCheckerBackground(w, h);
         renderAndSend("resize");
       } catch (e) { /* 忽略 */ }
     },
 
     setAnimationPaused: function (paused) {
       if (viewer && viewer.animation) { viewer.animation.paused = paused; }
+    },
+
+    setRenderingPaused: function (paused) {
+      if (!viewer) { return; }
+      viewer.renderPaused = paused;
+      if (!paused) { renderAndSend("resume"); }
     }
   };
 

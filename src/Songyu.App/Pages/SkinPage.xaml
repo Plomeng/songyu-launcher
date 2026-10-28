@@ -25,7 +25,7 @@
             <!-- 左：3D 预览（WebView2 承载 skinview3d） -->
             <Border Background="{StaticResource CardBg}" BorderBrush="{StaticResource Line}"
                     BorderThickness="1" CornerRadius="12" ClipToBounds="True">
-                <Grid x:Name="PreviewHost" Background="{StaticResource CardBg}">
+                <Grid x:Name="PreviewHost" Background="#F5F1E9">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="Auto"/>

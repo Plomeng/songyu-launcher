@@ -1,7 +1,9 @@
 using System.Diagnostics;
 using System.IO;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
+using Microsoft.Web.WebView2.Core;
 using Songyu.Services;
 
 namespace Songyu.App.Pages;
@@ -16,13 +18,155 @@ public partial class HomePage : UserControl
     private SkinInfo? _cachedSkin;
     private string? _cachedCapeUrl;
     private byte[]? _cachedCape;
+    private SkinInfo? _currentSkin;
+    private byte[]? _currentCape;
+    private bool _viewerReady;
+    private bool _initializingViewer;
+    private bool _previewRendered;
+    private int _renderRequestId;
+    private TaskCompletionSource? _bridgeReady;
+    private FrameworkElement? _dialogLayer;
 
     public HomePage(AppServices services)
     {
         InitializeComponent();
         _services = services;
         _skins = new SkinService(services.Paths, services.Http);
-        Loaded += (_, _) => Refresh();
+        Loaded += OnLoadedAsync;
+        Unloaded += (_, _) =>
+        {
+            _previewCts?.Cancel();
+            HomeSkinView.Visibility = Visibility.Hidden;
+            _ = SetRenderingPausedAsync(true);
+        };
+    }
+
+    private async void OnLoadedAsync(object sender, RoutedEventArgs e)
+    {
+        Refresh();
+        if (_dialogLayer is null && Window.GetWindow(this)?.FindName("DialogLayer") is FrameworkElement layer)
+        {
+            _dialogLayer = layer;
+            layer.IsVisibleChanged += (_, _) => UpdateViewerVisibility();
+        }
+        if (_viewerReady || _initializingViewer)
+        {
+            UpdateViewerVisibility();
+            _ = SetRenderingPausedAsync(false);
+            return;
+        }
+
+        _initializingViewer = true;
+        try
+        {
+            var assets = Path.Combine(AppContext.BaseDirectory, "Assets", "skinview");
+            if (!Directory.Exists(assets))
+            {
+                throw new DirectoryNotFoundException("找不到 3D 预览组件");
+            }
+
+            var userData = Path.Combine(_services.Paths.Root, "webview2");
+            Directory.CreateDirectory(userData);
+            var environment = await CoreWebView2Environment.CreateAsync(
+                browserExecutableFolder: null,
+                userDataFolder: userData,
+                options: new CoreWebView2EnvironmentOptions("--ignore-gpu-blocklist"));
+            await HomeSkinView.EnsureCoreWebView2Async(environment);
+            HomeSkinView.CoreWebView2.SetVirtualHostNameToFolderMapping(
+                "songyu.skin", assets, CoreWebView2HostResourceAccessKind.Allow);
+            HomeSkinView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
+            HomeSkinView.CoreWebView2.Settings.AreDevToolsEnabled = false;
+            HomeSkinView.CoreWebView2.Settings.IsStatusBarEnabled = false;
+            HomeSkinView.CoreWebView2.WebMessageReceived += OnViewerMessage;
+
+            var navigation = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            _bridgeReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            void OnNavigationCompleted(object? _, CoreWebView2NavigationCompletedEventArgs args)
+            {
+                if (args.IsSuccess) { navigation.TrySetResult(); }
+                else { navigation.TrySetException(new InvalidOperationException($"3D 预览加载失败：{args.WebErrorStatus}")); }
+            }
+
+            HomeSkinView.CoreWebView2.NavigationCompleted += OnNavigationCompleted;
+            HomeSkinView.Source = new Uri("https://songyu.skin/skinview.html?home=1");
+            try
+            {
+                await navigation.Task.WaitAsync(TimeSpan.FromSeconds(15));
+                await _bridgeReady.Task.WaitAsync(TimeSpan.FromSeconds(15));
+            }
+            finally { HomeSkinView.CoreWebView2.NavigationCompleted -= OnNavigationCompleted; }
+
+            _viewerReady = true;
+            await SetRenderingPausedAsync(!IsLoaded);
+            if (_currentSkin is not null) { await PushSkinAsync(); }
+        }
+        catch (Exception)
+        {
+            SkinPreviewEmpty.Text = "3D 预览暂不可用";
+            SkinPreviewEmpty.Visibility = Visibility.Visible;
+            _previewRendered = false;
+            UpdateViewerVisibility();
+        }
+        finally { _initializingViewer = false; }
+    }
+
+    private void OnViewerMessage(object? sender, CoreWebView2WebMessageReceivedEventArgs args)
+    {
+        try
+        {
+            using var message = JsonDocument.Parse(args.TryGetWebMessageAsString());
+            var root = message.RootElement;
+            var type = root.GetProperty("type").GetString();
+            if (type == "ready") { _bridgeReady?.TrySetResult(); }
+            else if (type == "loaded" &&
+                     root.TryGetProperty("requestId", out var request) &&
+                     request.TryGetInt32(out var requestId) && requestId == _renderRequestId)
+            {
+                _previewRendered = true;
+                SkinPreviewEmpty.Visibility = Visibility.Collapsed;
+                UpdateViewerVisibility();
+                if (_currentCape is not null) { _ = PushCapeAsync(); }
+                _ = HomeSkinView.ExecuteScriptAsync("window.skinBridge.refresh()");
+            }
+            else if (type == "error" && _currentSkin is not null)
+            {
+                SkinPreviewEmpty.Text = "3D 预览暂不可用";
+                SkinPreviewEmpty.Visibility = Visibility.Visible;
+                _previewRendered = false;
+                UpdateViewerVisibility();
+            }
+        }
+        catch (Exception) { /* 非预期消息不影响首页 */ }
+    }
+
+    private void UpdateViewerVisibility()
+    {
+        HomeSkinView.Visibility = _previewRendered && IsLoaded && _dialogLayer?.IsVisible != true
+            ? Visibility.Visible : Visibility.Hidden;
+    }
+
+    private async Task PushSkinAsync()
+    {
+        if (!_viewerReady || !IsLoaded || _currentSkin is not { } skin) { return; }
+        var dataUrl = "data:image/png;base64," + Convert.ToBase64String(skin.Png);
+        var model = skin.IsSlim ? "slim" : "classic";
+        var script = $"window.skinBridge.reset(); window.skinBridge.setSkin({JsonSerializer.Serialize(dataUrl)}, {JsonSerializer.Serialize(model)}, {_renderRequestId})";
+        await HomeSkinView.ExecuteScriptAsync(script);
+    }
+
+    private async Task PushCapeAsync()
+    {
+        if (!_viewerReady || !_previewRendered || _currentCape is not { } cape) { return; }
+        var dataUrl = "data:image/png;base64," + Convert.ToBase64String(cape);
+        try { await HomeSkinView.ExecuteScriptAsync($"window.skinBridge.setCape({JsonSerializer.Serialize(dataUrl)})"); }
+        catch (Exception) { /* 披风不影响角色预览 */ }
+    }
+
+    private async Task SetRenderingPausedAsync(bool paused)
+    {
+        if (!_viewerReady) { return; }
+        try { await HomeSkinView.ExecuteScriptAsync($"window.skinBridge.setRenderingPaused({(paused ? "true" : "false")})"); }
+        catch (Exception) { /* 页面切换期间 WebView 可能已卸载 */ }
     }
 
     /// <summary>首页当前选中的实例，别的页面（Mod 管理）据此定位。</summary>
@@ -90,15 +234,17 @@ public partial class HomePage : UserControl
         var account = _services.CreateAccountStore().Load();
         _previewCts?.Cancel();
         _previewCts = new CancellationTokenSource();
-        SkinPreviewImage.Source = null;
-        CapePreviewImage.Source = null;
+        _renderRequestId++;
+        _currentSkin = null;
+        _currentCape = null;
+        _previewRendered = false;
+        UpdateViewerVisibility();
         AvatarImage.Source = null;
+        SkinPreviewEmpty.Text = "暂无皮肤";
         SkinPreviewEmpty.Visibility = Visibility.Visible;
-        CapePreviewEmpty.Visibility = Visibility.Visible;
-        SkinPreviewLabel.Text = "皮肤";
+        SkinPreviewLabel.Text = "未选择皮肤";
         var signedIn = account?.Name is { Length: > 0 };
-        OfflineSkinStatusText.Visibility = signedIn ? Visibility.Collapsed : Visibility.Visible;
-        ChooseOfflineSkinButton.Visibility = signedIn ? Visibility.Collapsed : Visibility.Visible;
+        OfflineSkinActions.Visibility = signedIn ? Visibility.Collapsed : Visibility.Visible;
         OfflineSkinHintText.Visibility = signedIn ? Visibility.Collapsed : Visibility.Visible;
         OfflineSkinStatusText.Text = _services.SelectedOfflineSkinPath is { } selected
             ? "当前选择：" + (_services.Config.OfflineSkinDisplayName ?? Path.GetFileNameWithoutExtension(selected))
@@ -155,16 +301,17 @@ public partial class HomePage : UserControl
             token.ThrowIfCancellationRequested();
             if (skin is not null)
             {
-                SkinPreviewImage.Source = SkinHelper.RenderFront(skin.Png);
+                _currentSkin = skin;
                 AvatarImage.Source = SkinHelper.CropHead(skin.Png);
-                SkinPreviewEmpty.Visibility = Visibility.Collapsed;
+                SkinPreviewEmpty.Text = "正在加载 3D 角色…";
                 SkinPreviewLabel.Text = skin.Source == skinUrl
                     ? "账号皮肤"
                     : _services.Config.OfflineSkinDisplayName ?? Path.GetFileNameWithoutExtension(skin.Source);
                 SkinPreviewLabel.ToolTip = skin.Source;
+                await PushSkinAsync();
             }
 
-            if (string.IsNullOrWhiteSpace(capeUrl)) { return; }
+            if (skin is null || string.IsNullOrWhiteSpace(capeUrl)) { return; }
             try
             {
                 byte[] cape;
@@ -176,10 +323,10 @@ public partial class HomePage : UserControl
                     _cachedCape = cape;
                 }
                 token.ThrowIfCancellationRequested();
-                if (SkinHelper.RenderCape(cape) is { } image)
+                if (SkinHelper.RenderCape(cape) is not null)
                 {
-                    CapePreviewImage.Source = image;
-                    CapePreviewEmpty.Visibility = Visibility.Collapsed;
+                    _currentCape = cape;
+                    await PushCapeAsync();
                 }
             }
             catch (Exception) when (!token.IsCancellationRequested) { /* 披风下载失败不影响皮肤 */ }
