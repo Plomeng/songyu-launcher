@@ -132,10 +132,10 @@
                     <TextBlock Text="角色预览" Grid.ColumnSpan="2" FontSize="13" FontWeight="SemiBold"
                                Foreground="{StaticResource Ink}"/>
 
-                    <Image x:Name="SkinPreviewImage" Grid.Row="1" Width="86" Height="156"
+                    <Image x:Name="SkinPreviewImage" Grid.Row="1" Width="80" Height="160"
                            Stretch="Uniform" HorizontalAlignment="Center"
                            RenderOptions.BitmapScalingMode="NearestNeighbor"/>
-                    <Image x:Name="CapePreviewImage" Grid.Row="1" Grid.Column="1" Width="86" Height="156"
+                    <Image x:Name="CapePreviewImage" Grid.Row="1" Grid.Column="1" Width="80" Height="128"
                            Stretch="Uniform" HorizontalAlignment="Center"
                            RenderOptions.BitmapScalingMode="NearestNeighbor"/>
                     <TextBlock x:Name="SkinPreviewEmpty" Text="暂无皮肤" Grid.Row="1"
@@ -146,13 +146,15 @@
                                HorizontalAlignment="Center" VerticalAlignment="Center"/>
 
                     <TextBlock x:Name="SkinPreviewLabel" Text="皮肤" Grid.Row="2" FontSize="11"
-                               Foreground="{StaticResource InkSoft}" HorizontalAlignment="Center"/>
+                               Foreground="{StaticResource InkSoft}" HorizontalAlignment="Center"
+                               TextTrimming="CharacterEllipsis" MaxWidth="135"/>
                     <TextBlock Text="披风" Grid.Row="2" Grid.Column="1" FontSize="11"
                                Foreground="{StaticResource InkSoft}" HorizontalAlignment="Center"/>
                 </Grid>
             </Button>
 
             <Border Background="{StaticResource CardBg}" CornerRadius="12" Padding="14,12" Margin="0,0,0,8">
+                <StackPanel>
                 <Button x:Name="AccountButton" Click="OnAccountClick"
                         Background="Transparent" BorderThickness="0" Cursor="Hand"
                         HorizontalContentAlignment="Stretch">
@@ -163,7 +165,7 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
 
-                        <Border Width="38" Height="38" CornerRadius="8" Background="#F2EEE2"
+                        <Border Width="40" Height="40" CornerRadius="8" Background="#F2EEE2"
                                 ClipToBounds="True">
                             <Image x:Name="AvatarImage" Stretch="UniformToFill"
                                    RenderOptions.BitmapScalingMode="NearestNeighbor"/>
@@ -179,6 +181,15 @@
                                    Foreground="{StaticResource InkSoft}"/>
                     </Grid>
                 </Button>
+                <TextBlock x:Name="OfflineSkinStatusText" Margin="0,8,0,4" FontSize="11"
+                           Foreground="{StaticResource InkSoft}" TextTrimming="CharacterEllipsis"/>
+                <Button x:Name="ChooseOfflineSkinButton" Content="选择离线皮肤…"
+                        Style="{StaticResource GhostButton}" Height="28" Padding="8,0"
+                        HorizontalAlignment="Left" Click="OnChooseOfflineSkinClick"
+                        ToolTip="只改变启动器内的皮肤预览，不改变游戏内皮肤"/>
+                <TextBlock x:Name="OfflineSkinHintText" Text="仅用于启动器预览，不改变游戏内皮肤"
+                           Margin="0,5,0,0" FontSize="10" Foreground="{StaticResource InkSoft}"/>
+                </StackPanel>
             </Border>
 
             <Button x:Name="LaunchButton" Click="OnLaunchClick" Height="78" Cursor="Hand"

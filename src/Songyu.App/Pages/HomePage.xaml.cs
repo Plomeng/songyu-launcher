@@ -96,6 +96,14 @@ public partial class HomePage : UserControl
         SkinPreviewEmpty.Visibility = Visibility.Visible;
         CapePreviewEmpty.Visibility = Visibility.Visible;
         SkinPreviewLabel.Text = "皮肤";
+        var signedIn = account?.Name is { Length: > 0 };
+        OfflineSkinStatusText.Visibility = signedIn ? Visibility.Collapsed : Visibility.Visible;
+        ChooseOfflineSkinButton.Visibility = signedIn ? Visibility.Collapsed : Visibility.Visible;
+        OfflineSkinHintText.Visibility = signedIn ? Visibility.Collapsed : Visibility.Visible;
+        OfflineSkinStatusText.Text = _services.SelectedOfflineSkinPath is { } selected
+            ? "当前选择：" + (_services.Config.OfflineSkinDisplayName ?? Path.GetFileNameWithoutExtension(selected))
+            : "当前选择：未选择皮肤";
+        OfflineSkinStatusText.ToolTip = OfflineSkinStatusText.Text;
 
         if (account?.Name is { Length: > 0 } name)
         {
@@ -110,7 +118,8 @@ public partial class HomePage : UserControl
             AccountTypeText.Text = "离线账号";
         }
 
-        _ = RefreshPreviewAsync(account?.SkinUrl, account?.CapeUrl, _previewCts.Token);
+        _ = RefreshPreviewAsync(signedIn ? account?.SkinUrl : null,
+            signedIn ? account?.CapeUrl : null, _previewCts.Token);
     }
 
     private async Task RefreshPreviewAsync(string? skinUrl, string? capeUrl, CancellationToken token)
@@ -135,10 +144,11 @@ public partial class HomePage : UserControl
 
             if (skin is null)
             {
-                foreach (var path in _skins.ListLibrary())
+                var path = _services.SelectedOfflineSkinPath;
+                if (path is not null)
                 {
-                    try { skin = await _skins.LoadFileAsync(path, token); break; }
-                    catch (Exception) when (!token.IsCancellationRequested) { /* 忽略损坏的图片 */ }
+                    try { skin = await _skins.LoadFileAsync(path, token); }
+                    catch (Exception) when (!token.IsCancellationRequested) { /* 显示空状态 */ }
                 }
             }
 
@@ -148,7 +158,10 @@ public partial class HomePage : UserControl
                 SkinPreviewImage.Source = SkinHelper.RenderFront(skin.Png);
                 AvatarImage.Source = SkinHelper.CropHead(skin.Png);
                 SkinPreviewEmpty.Visibility = Visibility.Collapsed;
-                SkinPreviewLabel.Text = skin.Source == skinUrl ? "账号皮肤" : "本地皮肤";
+                SkinPreviewLabel.Text = skin.Source == skinUrl
+                    ? "账号皮肤"
+                    : _services.Config.OfflineSkinDisplayName ?? Path.GetFileNameWithoutExtension(skin.Source);
+                SkinPreviewLabel.ToolTip = skin.Source;
             }
 
             if (string.IsNullOrWhiteSpace(capeUrl)) { return; }
@@ -178,6 +191,25 @@ public partial class HomePage : UserControl
     private void OnPreviewClick(object sender, RoutedEventArgs e)
     {
         if (Window.GetWindow(this) is MainWindow main) { main.NavigateToSkin(); }
+    }
+
+    private async void OnChooseOfflineSkinClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "选择离线账号的预览皮肤",
+            Filter = "皮肤图 (*.png)|*.png",
+            InitialDirectory = _skins.SkinsDirectory,
+        };
+        if (dialog.ShowDialog() != true || Window.GetWindow(this) is not MainWindow main) { return; }
+        try
+        {
+            var skin = await _skins.LoadFileAsync(dialog.FileName);
+            await _services.SelectOfflineSkinAsync(skin);
+            Refresh();
+            main.ShowToast("已设置离线账号的预览皮肤");
+        }
+        catch (Exception ex) { main.ShowDialog("选择皮肤失败", ex.Message, allowCopy: true); }
     }
 
     private async void OnLaunchClick(object sender, RoutedEventArgs e)

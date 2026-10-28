@@ -41,6 +41,7 @@ public partial class MainWindow : Window
 
     /// <summary>从首页进 Mod 页时带的实例，Navigate 里消费掉。</summary>
     private string? _pendingModsInstanceId;
+    private bool _showSelectedSkin;
 
     private CancellationTokenSource? _operationCts;
 
@@ -235,7 +236,8 @@ public partial class MainWindow : Window
                 _serversPage.Load(_homePage.SelectedInstanceId);
                 break;
             case 6:
-                _skinPage.Load();
+                _skinPage.Load(_showSelectedSkin);
+                _showSelectedSkin = false;
                 break;
         }
     }
@@ -266,7 +268,11 @@ public partial class MainWindow : Window
 
     public void NavigateToSettings() => Navigate(3);
 
-    public void NavigateToSkin() => Navigate(6);
+    public void NavigateToSkin()
+    {
+        _showSelectedSkin = true;
+        Navigate(6);
+    }
 
     /// <summary>进 Mod 管理页；给了实例就直接切到那个实例（由 Navigate 统一加载，避免扫两遍）。</summary>
     public void NavigateToMods(string? instanceId = null)

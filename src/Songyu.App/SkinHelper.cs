@@ -55,10 +55,8 @@ public static class SkinHelper
 
         var head = new CroppedBitmap(skin, new Int32Rect(8, 8, 8, 8));
 
-        // 放大到 64×64，交给 Image 控件的 NearestNeighbor 保持像素感
-        var scaled = new TransformedBitmap(head, new ScaleTransform(8, 8));
-        scaled.Freeze();
-        return scaled;
+        head.Freeze();
+        return head;
     }
 
     /// <summary>按皮肤贴图坐标拼出正面角色，供首页在离线状态下直接预览。</summary>
@@ -68,37 +66,51 @@ public static class SkinHelper
         var frame = BitmapDecoder.Create(stream, BitmapCreateOptions.PreservePixelFormat,
             BitmapCacheOption.OnLoad).Frames[0];
         var modern = frame.PixelHeight >= 64;
-        var visual = new DrawingVisual();
-        RenderOptions.SetBitmapScalingMode(visual, BitmapScalingMode.NearestNeighbor);
-        using (var drawing = visual.RenderOpen())
+        var source = new FormatConvertedBitmap(frame, PixelFormats.Bgra32, null, 0);
+        var sourceStride = source.PixelWidth * 4;
+        var sourcePixels = new byte[sourceStride * source.PixelHeight];
+        source.CopyPixels(sourcePixels, sourceStride, 0);
+        var pixels = new byte[16 * 32 * 4];
+
+        void Part(int sourceX, int sourceY, int width, int height, int targetX, int targetY)
         {
-            void Part(int sourceX, int sourceY, int width, int height, int targetX, int targetY)
+            if (sourceX + width > source.PixelWidth || sourceY + height > source.PixelHeight) { return; }
+            for (var y = 0; y < height; y++)
+            for (var x = 0; x < width; x++)
             {
-                if (sourceX + width > frame.PixelWidth || sourceY + height > frame.PixelHeight) { return; }
-                var crop = new CroppedBitmap(frame, new Int32Rect(sourceX, sourceY, width, height));
-                drawing.DrawImage(crop, new Rect(targetX * 8, targetY * 8, width * 8, height * 8));
-            }
-
-            Part(8, 8, 8, 8, 4, 0);       // 头
-            Part(20, 20, 8, 12, 4, 8);   // 身体
-            Part(44, 20, 4, 12, 0, 8);   // 右手
-            Part(modern ? 36 : 44, modern ? 52 : 20, 4, 12, 12, 8);
-            Part(4, 20, 4, 12, 4, 20);   // 右腿
-            Part(modern ? 20 : 4, modern ? 52 : 20, 4, 12, 8, 20);
-
-            if (modern)
-            {
-                Part(40, 8, 8, 8, 4, 0);    // 帽子层
-                Part(20, 36, 8, 12, 4, 8);  // 外套层
-                Part(44, 36, 4, 12, 0, 8);  // 右袖
-                Part(52, 52, 4, 12, 12, 8); // 左袖
-                Part(4, 36, 4, 12, 4, 20);  // 右裤腿
-                Part(4, 52, 4, 12, 8, 20);  // 左裤腿
+                var from = (sourceY + y) * sourceStride + (sourceX + x) * 4;
+                var to = ((targetY + y) * 16 + targetX + x) * 4;
+                var alpha = sourcePixels[from + 3] / 255.0;
+                var previous = pixels[to + 3] / 255.0;
+                var combined = alpha + previous * (1 - alpha);
+                if (combined <= 0) { continue; }
+                for (var channel = 0; channel < 3; channel++)
+                {
+                    pixels[to + channel] = (byte)Math.Round(
+                        (sourcePixels[from + channel] * alpha +
+                         pixels[to + channel] * previous * (1 - alpha)) / combined);
+                }
+                pixels[to + 3] = (byte)Math.Round(combined * 255);
             }
         }
 
-        var bitmap = new RenderTargetBitmap(128, 256, 96, 96, PixelFormats.Pbgra32);
-        bitmap.Render(visual);
+        Part(8, 8, 8, 8, 4, 0);
+        Part(20, 20, 8, 12, 4, 8);
+        Part(44, 20, 4, 12, 0, 8);
+        Part(modern ? 36 : 44, modern ? 52 : 20, 4, 12, 12, 8);
+        Part(4, 20, 4, 12, 4, 20);
+        Part(modern ? 20 : 4, modern ? 52 : 20, 4, 12, 8, 20);
+        if (modern)
+        {
+            Part(40, 8, 8, 8, 4, 0);
+            Part(20, 36, 8, 12, 4, 8);
+            Part(44, 36, 4, 12, 0, 8);
+            Part(52, 52, 4, 12, 12, 8);
+            Part(4, 36, 4, 12, 4, 20);
+            Part(4, 52, 4, 12, 8, 20);
+        }
+
+        var bitmap = BitmapSource.Create(16, 32, 96, 96, PixelFormats.Bgra32, null, pixels, 16 * 4);
         bitmap.Freeze();
         return bitmap;
     }
@@ -110,8 +122,7 @@ public static class SkinHelper
             BitmapCacheOption.OnLoad).Frames[0];
         if (frame.PixelWidth < 12 || frame.PixelHeight < 17) { return null; }
         var crop = new CroppedBitmap(frame, new Int32Rect(1, 1, 10, 16));
-        var scaled = new TransformedBitmap(crop, new ScaleTransform(8, 8));
-        scaled.Freeze();
-        return scaled;
+        crop.Freeze();
+        return crop;
     }
 }

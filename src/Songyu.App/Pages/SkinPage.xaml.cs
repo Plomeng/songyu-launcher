@@ -40,7 +40,7 @@ public partial class SkinPage : UserControl
     }
 
     /// <summary>切入页面时调用。</summary>
-    public void Load(string? instanceId = null)
+    public void Load(bool showSelectedOfflineSkin = false)
     {
         var account = _services.CreateAccountStore().Load();
 
@@ -49,10 +49,22 @@ public partial class SkinPage : UserControl
             : "未登录 · 可以导入本地 PNG 预览";
 
         RefreshLibrary();
+        if (showSelectedOfflineSkin && account?.Name is not { Length: > 0 } &&
+            _services.SelectedOfflineSkinPath is { } selected)
+        {
+            _ = LoadSelectedOfflineSkinAsync(selected);
+            return;
+        }
         if (_skin is null)
         {
             _ = LoadInitialSkinAsync(account?.SkinUrl);
         }
+    }
+
+    private async Task LoadSelectedOfflineSkinAsync(string path)
+    {
+        try { await ApplySkinAsync(await _skins.LoadFileAsync(path)); }
+        catch { /* 页面仍可导入别的皮肤 */ }
     }
 
     private async Task LoadInitialSkinAsync(string? skinUrl)
@@ -62,6 +74,12 @@ public partial class SkinPage : UserControl
         {
             try { await ApplySkinAsync(await _skins.DownloadAsync(skinUrl)); return; }
             catch { /* 本地皮肤兜底 */ }
+        }
+
+        if (_services.SelectedOfflineSkinPath is { } selected)
+        {
+            try { await ApplySkinAsync(await _skins.LoadFileAsync(selected)); return; }
+            catch { /* 文件不可用时继续尝试皮肤库 */ }
         }
 
         foreach (var path in _skins.ListLibrary())
@@ -269,12 +287,23 @@ public partial class SkinPage : UserControl
             ? fileName
             : "皮肤";
 
+        UpdateOfflineSelectionLabel();
+
         UpdateMetaText();
 
         if (_viewerReady)
         {
             await PushSkinAsync();
         }
+    }
+
+    private void UpdateOfflineSelectionLabel()
+    {
+        var selected = _services.SelectedOfflineSkinPath;
+        SelectOfflineSkinButton.Content = _skin is not null && selected is not null &&
+            string.Equals(_skin.Source, selected, StringComparison.OrdinalIgnoreCase)
+                ? "当前离线预览皮肤 ✓"
+                : "设为离线预览皮肤";
     }
 
     private async Task PushSkinAsync()
@@ -434,6 +463,26 @@ public partial class SkinPage : UserControl
         {
             main.ShowDialog("保存失败", ex.Message, allowCopy: true);
         }
+    }
+
+    private async void OnSelectOfflineSkinClick(object sender, RoutedEventArgs e)
+    {
+        if (Window.GetWindow(this) is not MainWindow main) { return; }
+        if (_skin is null)
+        {
+            main.ShowToast("先导入一张皮肤，或从皮肤库选择");
+            return;
+        }
+
+        try
+        {
+            var selected = await _services.SelectOfflineSkinAsync(_skin);
+            _skin = _skin with { Source = selected };
+            UpdateOfflineSelectionLabel();
+            main.RefreshAllPages();
+            main.ShowToast("已设置离线账号的预览皮肤");
+        }
+        catch (Exception ex) { main.ShowDialog("设置离线皮肤失败", ex.Message, allowCopy: true); }
     }
 
     private async void OnLibrarySelected(object sender, SelectionChangedEventArgs e)

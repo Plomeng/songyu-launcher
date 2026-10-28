@@ -1,3 +1,4 @@
+using System.IO;
 using System.Net.Http;
 using Songyu.Services;
 
@@ -69,6 +70,42 @@ public sealed class AppServices
     public MicrosoftAuth CreateMicrosoftAuth() => new(Http, Config.MicrosoftClientIds);
 
     public AccountStore CreateAccountStore() => new(Paths);
+
+    public string? SelectedOfflineSkinPath
+    {
+        get
+        {
+            var name = Config.OfflineSkinFileName;
+            if (string.IsNullOrWhiteSpace(name) || name != Path.GetFileName(name)) { return null; }
+            var path = Path.Combine(Paths.Root, "skins", name);
+            return File.Exists(path) ? path : null;
+        }
+    }
+
+    public async Task<string> SelectOfflineSkinAsync(SkinInfo skin)
+    {
+        var skins = new SkinService(Paths, Http);
+        var source = skin.Source;
+        string path;
+        if (File.Exists(source) &&
+            string.Equals(Path.GetDirectoryName(Path.GetFullPath(source)), skins.SkinsDirectory,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            path = source;
+        }
+        else
+        {
+            var name = File.Exists(source) ? Path.GetFileNameWithoutExtension(source) : "account-skin";
+            path = await skins.SaveAsync(skin.Png, name + "-" + Guid.NewGuid().ToString("N")[..8]);
+        }
+
+        Config.OfflineSkinFileName = Path.GetFileName(path);
+        Config.OfflineSkinDisplayName = File.Exists(source)
+            ? Path.GetFileNameWithoutExtension(source)
+            : "账号皮肤";
+        Config.Save(Path.Combine(Paths.Root, "config.json"));
+        return path;
+    }
 
     public static bool IsSupported(LoaderKind kind)
         => kind is LoaderKind.Vanilla or LoaderKind.Fabric or LoaderKind.Quilt

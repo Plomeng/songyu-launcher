@@ -61,6 +61,12 @@ public sealed class AppConfig
     /// </summary>
     public string PlayerName { get; set; } = "Player";
 
+    /// <summary>离线账号在启动器内预览的皮肤文件名，位于本地 skins 目录。</summary>
+    public string? OfflineSkinFileName { get; set; }
+
+    /// <summary>离线皮肤在界面上显示的原始名称。</summary>
+    public string? OfflineSkinDisplayName { get; set; }
+
     /// <summary>
     /// 微软登录用的 client id 池。按顺序尝试，前一个失效（unauthorized_client /
     /// invalid_client）自动切下一个，全部失效才报错。
