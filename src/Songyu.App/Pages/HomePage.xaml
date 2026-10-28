@@ -102,6 +102,56 @@
         <!-- 右：启动区 -->
         <StackPanel Grid.Column="1" VerticalAlignment="Bottom">
 
+            <Button x:Name="PreviewButton" Height="216" Margin="0,0,0,8"
+                    Background="{StaticResource CardBg}" BorderThickness="0" Cursor="Hand" Click="OnPreviewClick"
+                    ToolTip="打开皮肤页">
+                <Button.Template>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="PreviewBackground" Background="{TemplateBinding Background}"
+                                BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="12">
+                            <ContentPresenter Margin="14,10" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="PreviewBackground" Property="Background" Value="{StaticResource CardHover}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Button.Template>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Text="角色预览" Grid.ColumnSpan="2" FontSize="13" FontWeight="SemiBold"
+                               Foreground="{StaticResource Ink}"/>
+
+                    <Image x:Name="SkinPreviewImage" Grid.Row="1" Width="86" Height="156"
+                           Stretch="Uniform" HorizontalAlignment="Center"
+                           RenderOptions.BitmapScalingMode="NearestNeighbor"/>
+                    <Image x:Name="CapePreviewImage" Grid.Row="1" Grid.Column="1" Width="86" Height="156"
+                           Stretch="Uniform" HorizontalAlignment="Center"
+                           RenderOptions.BitmapScalingMode="NearestNeighbor"/>
+                    <TextBlock x:Name="SkinPreviewEmpty" Text="暂无皮肤" Grid.Row="1"
+                               FontSize="11" Foreground="{StaticResource InkSoft}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="CapePreviewEmpty" Text="暂无披风" Grid.Row="1" Grid.Column="1"
+                               FontSize="11" Foreground="{StaticResource InkSoft}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+
+                    <TextBlock x:Name="SkinPreviewLabel" Text="皮肤" Grid.Row="2" FontSize="11"
+                               Foreground="{StaticResource InkSoft}" HorizontalAlignment="Center"/>
+                    <TextBlock Text="披风" Grid.Row="2" Grid.Column="1" FontSize="11"
+                               Foreground="{StaticResource InkSoft}" HorizontalAlignment="Center"/>
+                </Grid>
+            </Button>
+
             <Border Background="{StaticResource CardBg}" CornerRadius="12" Padding="14,12" Margin="0,0,0,8">
                 <Button x:Name="AccountButton" Click="OnAccountClick"
                         Background="Transparent" BorderThickness="0" Cursor="Hand"

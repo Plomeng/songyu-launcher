@@ -38,7 +38,7 @@ public static class SkinHelper
         }
     }
 
-    private static ImageSource? CropHead(byte[] pngBytes)
+    public static ImageSource? CropHead(byte[] pngBytes)
     {
         using var stream = new MemoryStream(pngBytes);
 
@@ -57,6 +57,60 @@ public static class SkinHelper
 
         // 放大到 64×64，交给 Image 控件的 NearestNeighbor 保持像素感
         var scaled = new TransformedBitmap(head, new ScaleTransform(8, 8));
+        scaled.Freeze();
+        return scaled;
+    }
+
+    /// <summary>按皮肤贴图坐标拼出正面角色，供首页在离线状态下直接预览。</summary>
+    public static ImageSource RenderFront(byte[] pngBytes)
+    {
+        using var stream = new MemoryStream(pngBytes);
+        var frame = BitmapDecoder.Create(stream, BitmapCreateOptions.PreservePixelFormat,
+            BitmapCacheOption.OnLoad).Frames[0];
+        var modern = frame.PixelHeight >= 64;
+        var visual = new DrawingVisual();
+        RenderOptions.SetBitmapScalingMode(visual, BitmapScalingMode.NearestNeighbor);
+        using (var drawing = visual.RenderOpen())
+        {
+            void Part(int sourceX, int sourceY, int width, int height, int targetX, int targetY)
+            {
+                if (sourceX + width > frame.PixelWidth || sourceY + height > frame.PixelHeight) { return; }
+                var crop = new CroppedBitmap(frame, new Int32Rect(sourceX, sourceY, width, height));
+                drawing.DrawImage(crop, new Rect(targetX * 8, targetY * 8, width * 8, height * 8));
+            }
+
+            Part(8, 8, 8, 8, 4, 0);       // 头
+            Part(20, 20, 8, 12, 4, 8);   // 身体
+            Part(44, 20, 4, 12, 0, 8);   // 右手
+            Part(modern ? 36 : 44, modern ? 52 : 20, 4, 12, 12, 8);
+            Part(4, 20, 4, 12, 4, 20);   // 右腿
+            Part(modern ? 20 : 4, modern ? 52 : 20, 4, 12, 8, 20);
+
+            if (modern)
+            {
+                Part(40, 8, 8, 8, 4, 0);    // 帽子层
+                Part(20, 36, 8, 12, 4, 8);  // 外套层
+                Part(44, 36, 4, 12, 0, 8);  // 右袖
+                Part(52, 52, 4, 12, 12, 8); // 左袖
+                Part(4, 36, 4, 12, 4, 20);  // 右裤腿
+                Part(4, 52, 4, 12, 8, 20);  // 左裤腿
+            }
+        }
+
+        var bitmap = new RenderTargetBitmap(128, 256, 96, 96, PixelFormats.Pbgra32);
+        bitmap.Render(visual);
+        bitmap.Freeze();
+        return bitmap;
+    }
+
+    public static ImageSource? RenderCape(byte[] pngBytes)
+    {
+        using var stream = new MemoryStream(pngBytes);
+        var frame = BitmapDecoder.Create(stream, BitmapCreateOptions.PreservePixelFormat,
+            BitmapCacheOption.OnLoad).Frames[0];
+        if (frame.PixelWidth < 12 || frame.PixelHeight < 17) { return null; }
+        var crop = new CroppedBitmap(frame, new Int32Rect(1, 1, 10, 16));
+        var scaled = new TransformedBitmap(crop, new ScaleTransform(8, 8));
         scaled.Freeze();
         return scaled;
     }

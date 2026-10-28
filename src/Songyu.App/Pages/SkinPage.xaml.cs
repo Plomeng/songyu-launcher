@@ -49,6 +49,26 @@ public partial class SkinPage : UserControl
             : "未登录 · 可以导入本地 PNG 预览";
 
         RefreshLibrary();
+        if (_skin is null)
+        {
+            _ = LoadInitialSkinAsync(account?.SkinUrl);
+        }
+    }
+
+    private async Task LoadInitialSkinAsync(string? skinUrl)
+    {
+        if (_skin is not null) { return; }
+        if (!string.IsNullOrWhiteSpace(skinUrl))
+        {
+            try { await ApplySkinAsync(await _skins.DownloadAsync(skinUrl)); return; }
+            catch { /* 本地皮肤兜底 */ }
+        }
+
+        foreach (var path in _skins.ListLibrary())
+        {
+            try { await ApplySkinAsync(await _skins.LoadFileAsync(path)); return; }
+            catch { /* 跳过无法读取的皮肤 */ }
+        }
     }
 
     private async void OnLoadedAsync(object sender, RoutedEventArgs e)

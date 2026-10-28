@@ -266,6 +266,8 @@ public partial class MainWindow : Window
 
     public void NavigateToSettings() => Navigate(3);
 
+    public void NavigateToSkin() => Navigate(6);
+
     /// <summary>进 Mod 管理页；给了实例就直接切到那个实例（由 Navigate 统一加载，避免扫两遍）。</summary>
     public void NavigateToMods(string? instanceId = null)
     {

@@ -9,12 +9,19 @@ namespace Songyu.App.Pages;
 public partial class HomePage : UserControl
 {
     private readonly AppServices _services;
+    private readonly SkinService _skins;
     private string? _selectedInstanceId;
+    private CancellationTokenSource? _previewCts;
+    private string? _cachedSkinUrl;
+    private SkinInfo? _cachedSkin;
+    private string? _cachedCapeUrl;
+    private byte[]? _cachedCape;
 
     public HomePage(AppServices services)
     {
         InitializeComponent();
         _services = services;
+        _skins = new SkinService(services.Paths, services.Http);
         Loaded += (_, _) => Refresh();
     }
 
@@ -81,30 +88,96 @@ public partial class HomePage : UserControl
     private void RefreshAccount()
     {
         var account = _services.CreateAccountStore().Load();
+        _previewCts?.Cancel();
+        _previewCts = new CancellationTokenSource();
+        SkinPreviewImage.Source = null;
+        CapePreviewImage.Source = null;
+        AvatarImage.Source = null;
+        SkinPreviewEmpty.Visibility = Visibility.Visible;
+        CapePreviewEmpty.Visibility = Visibility.Visible;
+        SkinPreviewLabel.Text = "皮肤";
 
         if (account?.Name is { Length: > 0 } name)
         {
             AccountNameText.Text = name;
             AccountTypeText.Text = "正版账号";
-            _ = LoadAvatarAsync(account.SkinUrl);
-            return;
+        }
+        else
+        {
+            AccountNameText.Text = string.IsNullOrWhiteSpace(_services.Config.PlayerName)
+                ? "Player"
+                : _services.Config.PlayerName;
+            AccountTypeText.Text = "离线账号";
         }
 
-        AccountNameText.Text = string.IsNullOrWhiteSpace(_services.Config.PlayerName)
-            ? "Player"
-            : _services.Config.PlayerName;
-        AccountTypeText.Text = "离线账号";
-        AvatarImage.Source = null;
+        _ = RefreshPreviewAsync(account?.SkinUrl, account?.CapeUrl, _previewCts.Token);
     }
 
-    private async Task LoadAvatarAsync(string? skinUrl)
+    private async Task RefreshPreviewAsync(string? skinUrl, string? capeUrl, CancellationToken token)
     {
-        var image = await SkinHelper.LoadAvatarAsync(_services.Http, skinUrl);
-
-        if (image is not null)
+        try
         {
-            AvatarImage.Source = image;
+            SkinInfo? skin = null;
+            if (!string.IsNullOrWhiteSpace(skinUrl))
+            {
+                try
+                {
+                    if (_cachedSkinUrl == skinUrl) { skin = _cachedSkin; }
+                    else
+                    {
+                        skin = await _skins.DownloadAsync(skinUrl, token);
+                        _cachedSkinUrl = skinUrl;
+                        _cachedSkin = skin;
+                    }
+                }
+                catch (Exception) when (!token.IsCancellationRequested) { /* 本地皮肤兜底 */ }
+            }
+
+            if (skin is null)
+            {
+                foreach (var path in _skins.ListLibrary())
+                {
+                    try { skin = await _skins.LoadFileAsync(path, token); break; }
+                    catch (Exception) when (!token.IsCancellationRequested) { /* 忽略损坏的图片 */ }
+                }
+            }
+
+            token.ThrowIfCancellationRequested();
+            if (skin is not null)
+            {
+                SkinPreviewImage.Source = SkinHelper.RenderFront(skin.Png);
+                AvatarImage.Source = SkinHelper.CropHead(skin.Png);
+                SkinPreviewEmpty.Visibility = Visibility.Collapsed;
+                SkinPreviewLabel.Text = skin.Source == skinUrl ? "账号皮肤" : "本地皮肤";
+            }
+
+            if (string.IsNullOrWhiteSpace(capeUrl)) { return; }
+            try
+            {
+                byte[] cape;
+                if (_cachedCapeUrl == capeUrl && _cachedCape is not null) { cape = _cachedCape; }
+                else
+                {
+                    cape = await _services.Http.GetByteArrayAsync(capeUrl, token);
+                    _cachedCapeUrl = capeUrl;
+                    _cachedCape = cape;
+                }
+                token.ThrowIfCancellationRequested();
+                if (SkinHelper.RenderCape(cape) is { } image)
+                {
+                    CapePreviewImage.Source = image;
+                    CapePreviewEmpty.Visibility = Visibility.Collapsed;
+                }
+            }
+            catch (Exception) when (!token.IsCancellationRequested) { /* 披风下载失败不影响皮肤 */ }
         }
+        catch (OperationCanceledException) { }
+        catch (Exception) { /* 首页预览失败不影响启动 */ }
+    }
+
+    private void OnPreviewClick(object sender, RoutedEventArgs e)
+    {
+        if (Window.GetWindow(this) is MainWindow main) { main.NavigateToSkin(); }
     }
 
     private async void OnLaunchClick(object sender, RoutedEventArgs e)
