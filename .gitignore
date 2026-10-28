@@ -1,0 +1,37 @@
+# ───── 构建产物（任意层级，vendor 里的也要排除）─────
+[Bb]in/
+[Oo]bj/
+*.g.resources
+
+# ───── 仓库根目录下的运行时产物 ─────
+# 必须加前导斜杠：不加的话 app/ 会匹配第三方源码里的 App 子目录，
+# 把整棵子树排除掉，导致 clone 下来编译不过。
+/app/
+/publish/
+/data/
+/.cache/
+/.re/
+
+# ───── 用户 / IDE 文件 ─────
+.vs/
+*.user
+*.suo
+*.DotSettings.user
+
+# ───── 内部文档 ─────
+# 开发笔记与设计稿只在本地维护
+/docs/
+
+# ───── 系统文件 ─────
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# ───── 临时文件 ─────
+.msg-*.txt
+*.orig
+*.rej
+
+# ───── 本地备份与临时探测目录 ─────
+/.git-backup-*/
+/.tmp-probe/

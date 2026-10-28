@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>14.0</LangVersion>
+    <RootNamespace>Songyu.Services</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Songyu.Core.Minecraft\Songyu.Core.Minecraft.csproj" />
+    <ProjectReference Include="..\Songyu.Core.Download\Songyu.Core.Download.csproj" />
+    <ProjectReference Include="..\Songyu.Core.Launch\Songyu.Core.Launch.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 本地内容索引（data/index.db）。 -->
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.9" />
+    <PackageReference Include="fNbt" Version="1.0.0" />
+  </ItemGroup>
+
+</Project>

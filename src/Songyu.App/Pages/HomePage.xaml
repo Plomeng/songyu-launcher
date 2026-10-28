@@ -1,0 +1,208 @@
+<UserControl x:Class="Songyu.App.Pages.HomePage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="Transparent">
+
+    <Grid Margin="26,4,26,20">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="320"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- 左：版本列表 -->
+        <Grid Grid.Column="0" Margin="0,0,20,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <Border x:Name="JavaWarning" Visibility="Collapsed" Background="#FFF6DF"
+                    CornerRadius="10" Padding="16,12" Margin="0,0,0,12">
+                <Grid>
+                    <StackPanel>
+                        <TextBlock Text="没有检测到 Java" FontSize="13" FontWeight="SemiBold"/>
+                        <TextBlock Text="启动 Minecraft 必须有 Java 17 或更高版本，装好后重启启动器即可"
+                                   FontSize="11" Foreground="{StaticResource InkSoft}" Margin="0,4,0,0"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+                    <Button Content="怎么安装" Style="{StaticResource GhostButton}"
+                            HorizontalAlignment="Right" VerticalAlignment="Center"
+                            Click="OnJavaHelpClick"/>
+                </Grid>
+            </Border>
+
+            <TextBlock Grid.Row="1" Text="已安装版本" Style="{StaticResource SectionLabel}" Margin="2,0,0,10"/>
+
+            <Grid Grid.Row="2">
+                <ListBox x:Name="VersionList" Background="Transparent" BorderThickness="0"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         SelectionChanged="OnVersionSelected">
+                    <ListBox.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Header="新建实例（沿用选中实例的版本）" Click="OnNewInstanceClick"/>
+                            <MenuItem Header="重命名实例…" Click="OnRenameInstanceClick"/>
+                            <MenuItem Header="删除实例…" Click="OnDeleteInstanceClick"/>
+                            <Separator/>
+                            <MenuItem Header="打开游戏目录" Click="OnOpenInstanceDirClick"/>
+                        </ContextMenu>
+                    </ListBox.ContextMenu>
+
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem">
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                            <Setter Property="Margin" Value="0,0,0,8"/>
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="ListBoxItem">
+                                        <Border x:Name="Bg" Background="{StaticResource CardBg}"
+                                                BorderBrush="{StaticResource Line}" BorderThickness="2"
+                                                CornerRadius="10" Padding="16,12">
+                                            <ContentPresenter/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Bg" Property="Background" Value="#FFFDF6"/>
+                                            </Trigger>
+                                            <Trigger Property="IsSelected" Value="True">
+                                                <Setter TargetName="Bg" Property="BorderBrush"
+                                                        Value="{StaticResource EggYolk}"/>
+                                                <Setter TargetName="Bg" Property="Background" Value="#FFF9E8"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Name}" FontSize="14" FontWeight="SemiBold"
+                                           TextTrimming="CharacterEllipsis"/>
+                                <TextBlock Text="{Binding DisplayType}" FontSize="11"
+                                           Foreground="{StaticResource InkSoft}" Margin="0,3,0,0"
+                                           TextTrimming="CharacterEllipsis"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <StackPanel x:Name="EmptyHint" VerticalAlignment="Center" HorizontalAlignment="Center"
+                            Visibility="Collapsed">
+                    <TextBlock Text="还没有安装任何版本" FontSize="15"
+                               Foreground="{StaticResource InkSoft}" HorizontalAlignment="Center"/>
+                    <TextBlock Text="去「下载」页面装一个吧" FontSize="12"
+                               Foreground="{StaticResource InkSoft}" Margin="0,8,0,0" HorizontalAlignment="Center"/>
+                </StackPanel>
+            </Grid>
+        </Grid>
+
+        <!-- 右：启动区 -->
+        <StackPanel Grid.Column="1" VerticalAlignment="Bottom">
+
+            <Border Background="{StaticResource CardBg}" CornerRadius="12" Padding="14,12" Margin="0,0,0,8">
+                <Button x:Name="AccountButton" Click="OnAccountClick"
+                        Background="Transparent" BorderThickness="0" Cursor="Hand"
+                        HorizontalContentAlignment="Stretch">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Border Width="38" Height="38" CornerRadius="8" Background="#F2EEE2"
+                                ClipToBounds="True">
+                            <Image x:Name="AvatarImage" Stretch="UniformToFill"
+                                   RenderOptions.BitmapScalingMode="NearestNeighbor"/>
+                        </Border>
+
+                        <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
+                            <TextBlock x:Name="AccountNameText" FontSize="13" FontWeight="SemiBold"/>
+                            <TextBlock x:Name="AccountTypeText" FontSize="11" Margin="0,2,0,0"
+                                       Foreground="{StaticResource InkSoft}"/>
+                        </StackPanel>
+
+                        <TextBlock Grid.Column="2" Text="切换 ›" FontSize="11" VerticalAlignment="Center"
+                                   Foreground="{StaticResource InkSoft}"/>
+                    </Grid>
+                </Button>
+            </Border>
+
+            <Button x:Name="LaunchButton" Click="OnLaunchClick" Height="78" Cursor="Hand"
+                    Background="{StaticResource CardBg}" BorderThickness="0">
+                <Button.Template>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bg" Background="{TemplateBinding Background}"
+                                BorderBrush="{StaticResource EggYolk}" BorderThickness="2"
+                                CornerRadius="12" RenderTransformOrigin="0.5,0.5">
+                            <Border.RenderTransform>
+                                <ScaleTransform x:Name="Scale" ScaleX="1" ScaleY="1"/>
+                            </Border.RenderTransform>
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="#FFF9E8"/>
+                                <Trigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="Scale" Storyboard.TargetProperty="ScaleX"
+                                                             To="1.02" Duration="0:0:0.15" EasingFunction="{StaticResource EaseOut}"/>
+                                            <DoubleAnimation Storyboard.TargetName="Scale" Storyboard.TargetProperty="ScaleY"
+                                                             To="1.02" Duration="0:0:0.15" EasingFunction="{StaticResource EaseOut}"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.EnterActions>
+                                <Trigger.ExitActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="Scale" Storyboard.TargetProperty="ScaleX"
+                                                             To="1" Duration="0:0:0.18" EasingFunction="{StaticResource EaseOut}"/>
+                                            <DoubleAnimation Storyboard.TargetName="Scale" Storyboard.TargetProperty="ScaleY"
+                                                             To="1" Duration="0:0:0.18" EasingFunction="{StaticResource EaseOut}"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.ExitActions>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="#FFF3D2"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bg" Property="BorderBrush" Value="{StaticResource Line}"/>
+                                <Setter Property="Opacity" Value="0.55"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Button.Template>
+
+                <StackPanel>
+                    <TextBlock Text="启动游戏" FontSize="17" FontWeight="SemiBold"
+                               Foreground="{StaticResource EggYolkPressed}" HorizontalAlignment="Center"/>
+                    <TextBlock x:Name="SelectedVersionText" Margin="0,4,0,0" FontSize="12"
+                               Foreground="{StaticResource InkSoft}" HorizontalAlignment="Center"
+                               TextTrimming="CharacterEllipsis" MaxWidth="260"/>
+                </StackPanel>
+            </Button>
+
+            <Grid Margin="0,8,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="8"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="8"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <Button Content="版本设置" Grid.Column="0" Height="42"
+                        Style="{StaticResource GhostButton}" Click="OnVersionSettingsClick"/>
+                <Button Content="Mod 管理" Grid.Column="2" Height="42"
+                        Style="{StaticResource GhostButton}" Click="OnModsClick"/>
+                <Button Content="版本选择" Grid.Column="4" Height="42"
+                        Style="{StaticResource GhostButton}" Click="OnChooseVersionClick"/>
+            </Grid>
+        </StackPanel>
+    </Grid>
+</UserControl>

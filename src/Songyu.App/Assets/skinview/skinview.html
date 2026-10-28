@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="skinview3d.bundle.js"></script>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #FAF7EF;
+  }
+  #stage { width: 100%; height: 100%; }
+</style>
+</head>
+<body>
+<canvas id="stage"></canvas>
+<script>
+(function () {
+  "use strict";
+
+  var viewer = null;
+  var yaw = -18;
+  var pitch = 8;
+  var distance = 65;
+
+  function post(payload) {
+    try {
+      if (window.chrome && chrome.webview) {
+        chrome.webview.postMessage(JSON.stringify(payload));
+      }
+    } catch (e) { /* 忽略 */ }
+  }
+
+  /** 把相机摆到角色斜上方，绕 Y 轴转 yaw、俯仰 pitch。 */
+  function applyCamera() {
+    if (!viewer) { return; }
+
+    var height = 0;
+    var yawRad = yaw * Math.PI / 180;
+    var pitchRad = pitch * Math.PI / 180;
+
+    var horizontal = distance * Math.cos(pitchRad);
+    var vertical = distance * Math.sin(pitchRad);
+
+    viewer.camera.position.set(
+      Math.sin(yawRad) * horizontal,
+      height + vertical,
+      Math.cos(yawRad) * horizontal);
+
+    viewer.camera.lookAt(0, height, 0);
+
+    if (viewer.controls && viewer.controls.target) {
+      viewer.controls.target.set(0, height, 0);
+      viewer.controls.update();
+    }
+  }
+
+  /** 立即更新相机和画面；持续动画由渲染器维护。 */
+  function renderAndSend(reason) {
+    if (!viewer) {
+      post({ type: "error", message: "viewer 还没准备好" });
+      return;
+    }
+
+    try {
+      applyCamera();
+      viewer.render();
+
+    } catch (e) {
+      post({ type: "error", message: "渲染失败: " + e });
+    }
+  }
+
+  /** 懒建渲染器；容器尺寸变了就重建一次。 */
+  function ensureViewer() {
+    if (viewer) { return viewer; }
+
+    var stage = document.getElementById("stage");
+    var w = Math.max(120, window.innerWidth);
+    var h = Math.max(120, window.innerHeight);
+
+    viewer = new skinview3d.SkinViewer({
+      canvas: stage,
+      width: w,
+      height: h,
+      preserveDrawingBuffer: true,
+      background: 0xFAF7EF
+    });
+
+    viewer.controls.enableZoom = true;
+    viewer.controls.enableRotate = true;
+    viewer.controls.enablePan = false;
+    viewer.controls.addEventListener("change", function () {
+      var position = viewer.camera.position;
+      distance = position.length();
+      yaw = Math.atan2(position.x, position.z) * 180 / Math.PI;
+      pitch = Math.asin(position.y / distance) * 180 / Math.PI;
+    });
+
+    try { viewer.animation = new skinview3d.IdleAnimation(); }
+    catch (e) { /* 没动画也能渲染 */ }
+
+    return viewer;
+  }
+
+  window.skinBridge = {
+    setSkin: function (dataUrl, model) {
+      var v;
+      try { v = ensureViewer(); }
+      catch (e) { post({ type: "error", message: "创建渲染器失败: " + e }); return; }
+      var m = model === "slim" ? "slim" : "classic";
+
+      var img = new Image();
+      img.onload = function () {
+        try {
+          v.loadSkin(img, { model: m });
+          renderAndSend("skin");
+          post({ type: "loaded" });
+        } catch (e) {
+          post({ type: "error", message: "loadSkin: " + e });
+        }
+      };
+      img.onerror = function () {
+        post({ type: "error", message: "皮肤图片解码失败" });
+      };
+      img.src = dataUrl;
+    },
+
+    setModel: function (model) {
+      if (!viewer) { return; }
+      viewer.playerObject.skin.modelType = model === "slim" ? "slim" : "default";
+      renderAndSend("model");
+    },
+
+    /** 相对旋转：dYaw / dPitch 单位是度。 */
+    rotate: function (dYaw, dPitch) {
+      yaw += dYaw || 0;
+      pitch = Math.max(-60, Math.min(60, pitch + (dPitch || 0)));
+      renderAndSend("rotate");
+    },
+
+    reset: function () {
+      yaw = -18;
+      pitch = 8;
+      distance = 65;
+      renderAndSend("reset");
+    },
+
+    /** 缩放：factor 大于 1 拉远，小于 1 拉近。 */
+    zoom: function (factor) {
+      if (!viewer) { return; }
+      distance = Math.max(35, Math.min(180, viewer.camera.position.length() * (factor || 1)));
+      renderAndSend("zoom");
+    },
+
+    /** 窗口尺寸变化后重绘一帧。 */
+    refresh: function () {
+      if (!viewer) { return; }
+      var stage = document.getElementById("stage");
+      var w = Math.max(120, window.innerWidth);
+      var h = Math.max(120, window.innerHeight);
+      try {
+        viewer.setSize(w, h);
+        renderAndSend("resize");
+      } catch (e) { /* 忽略 */ }
+    },
+
+    setAnimationPaused: function (paused) {
+      if (viewer && viewer.animation) { viewer.animation.paused = paused; }
+    }
+  };
+
+  window.addEventListener("resize", function () { window.skinBridge.refresh(); });
+  window.addEventListener("error", function (event) {
+    post({ type: "error", message: event.message || "预览脚本执行失败" });
+  });
+  window.addEventListener("unhandledrejection", function (event) {
+    post({ type: "error", message: String(event.reason) });
+  });
+  post({ type: "ready" });
+})();
+</script>
+</body>
+</html>
