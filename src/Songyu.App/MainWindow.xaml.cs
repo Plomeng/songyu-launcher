@@ -4,8 +4,6 @@ using System.IO.Compression;
 using System.Net.Http;
 using Microsoft.Win32;
 using System.Runtime.InteropServices;
-using System.Security.Cryptography;
-using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -301,7 +299,7 @@ public partial class MainWindow : Window
         {
             var confirmed = await ShowConfirmAsync(
                 "退出登录",
-                $"当前登录：{name}\n\n退出后改用离线账号，进不了正版服务器。",
+                $"当前登录：{name}\n\n退出后将无法启动游戏，仍可管理已安装内容。",
                 "退出登录",
                 "取消");
 
@@ -309,7 +307,7 @@ public partial class MainWindow : Window
             {
                 store.Clear();
                 RefreshAllPages();
-                ShowDialog("已退出", "现在使用离线账号。");
+                ShowDialog("已退出", "登录凭据已删除。重新登录后才能启动游戏。");
             }
 
             return;
@@ -317,11 +315,10 @@ public partial class MainWindow : Window
 
         var login = await ShowConfirmAsync(
             "账号",
-            "现在用的是离线账号：进不了正版服务器，也显示不了你的正版皮肤和披风。\n\n" +
-            "登录微软账号后，启动时会以正版身份进入游戏。\n\n" +
-            "支持正版，建议用正版账号游玩。",
+            "当前未登录。请使用拥有 Minecraft: Java Edition 的微软账号登录。\n\n" +
+            "登录需要本应用获批的 Client ID；获批前游戏启动暂不可用。",
             "登录正版",
-            "暂时离线");
+            "稍后");
 
         if (login)
         {
@@ -553,15 +550,9 @@ public partial class MainWindow : Window
         {
             var openSettings = await ShowConfirmAsync(
                 "还没有配置 Client ID",
-                "登录需要至少一个 Azure 应用的 client id。\n\n" +
-                "注册步骤（免费）：\n" +
-                "1. portal.azure.com → 应用注册 → 新注册\n" +
-                "2. 账户类型选「任何组织目录中的账户和个人账户」\n" +
-                "3. 复制「应用程序(客户端) ID」\n" +
-                "4. 「身份验证」→ 允许公共客户端流 → 是\n" +
-                "5. 填到 设置 → 正版账号 → Client ID\n\n" +
-                "可以填多行，第一个失效会自动换下一个。\n\n" +
-                "要现在去填写吗？",
+                "登录需要本应用自己的 Client ID 经 Minecraft 服务审核并加入 allow list。\n\n" +
+                "只在 设置 → 正版账号 中填写获批的 ID。注册 Azure 应用本身不会开通 Minecraft API。\n\n" +
+                "要现在打开设置吗？",
                 "去填写",
                 "先跳过");
 
@@ -593,6 +584,7 @@ public partial class MainWindow : Window
 
             _services.CreateAccountStore().Save(new AccountStore.AccountData
             {
+                ClientId = auth.ClientId,
                 RefreshToken = token.RefreshToken,
                 MinecraftAccessToken = profile.AccessToken,
                 Uuid = profile.Uuid,
@@ -605,11 +597,7 @@ public partial class MainWindow : Window
             RefreshAllPages();
             CloseLoginDialog();
 
-            var poolNote = auth.Total > 1
-                ? $"\n\n（用的是第 {auth.CurrentIndex}/{auth.Total} 个 client id）"
-                : string.Empty;
-
-            ShowDialog("登录成功", $"欢迎，{profile.Name}。\n\n之后启动会用这个正版账号。{poolNote}");
+            ShowDialog("登录成功", $"欢迎，{profile.Name}。\n\n之后启动会用这个正版账号。");
         }
         catch (OperationCanceledException)
         {
@@ -704,11 +692,7 @@ public partial class MainWindow : Window
                 ? settings.JavaPath
                 : java.JavaExePath;
 
-            var offlineName = string.IsNullOrWhiteSpace(_services.Config.PlayerName)
-                ? "Player"
-                : _services.Config.PlayerName;
-
-            var account = await ResolveAccountAsync(offlineName);
+            var account = await ResolveAccountAsync();
 
             var options = new LaunchOptions
             {
@@ -1292,63 +1276,64 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// 决定这次用哪个身份启动。
-    /// 有正版令牌且没过期就直接用；过期就用刷新令牌换新的；
-    /// 刷新失败一律退回离线，不能因为登录问题让游戏启动不了。
+    /// 启动只能使用已登录的正版账号。令牌失效时刷新失败则停止启动。
     /// </summary>
-    private async Task<(string Name, string Uuid, string Token, string UserType)> ResolveAccountAsync(
-        string offlineName)
+    private async Task<(string Name, string Uuid, string Token, string UserType)> ResolveAccountAsync()
     {
         var store = _services.CreateAccountStore();
         var account = store.Load();
 
+        var auth = _services.CreateMicrosoftAuth();
+        if (!auth.IsConfigured)
+        {
+            throw new InvalidOperationException("本应用尚未配置获批的 Client ID，游戏启动暂不可用。");
+        }
+
         if (account is null || string.IsNullOrEmpty(account.RefreshToken))
         {
-            return (offlineName, OfflineUuid(offlineName), "0", "legacy");
+            throw new InvalidOperationException("请先登录拥有 Minecraft: Java Edition 的微软账号；离线身份启动已暂停。");
+        }
+        if (!string.Equals(account.ClientId, auth.ClientId, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("当前账号不是通过本应用配置的 Client ID 登录，请退出后重新登录。");
         }
 
         if (!string.IsNullOrEmpty(account.MinecraftAccessToken) &&
             !string.IsNullOrEmpty(account.Uuid) &&
+            !string.IsNullOrEmpty(account.Name) &&
             account.MinecraftExpiresAt is { } expires &&
             expires > DateTimeOffset.UtcNow.AddMinutes(5))
         {
             ShowToast($"使用正版账号 {account.Name}");
-            return (account.Name ?? offlineName, account.Uuid, account.MinecraftAccessToken, "msa");
+            return (account.Name, account.Uuid, account.MinecraftAccessToken, "msa");
         }
 
         try
         {
             ShowToast("正版令牌已过期，正在刷新…");
 
-            var auth = _services.CreateMicrosoftAuth();
             var microsoftToken = await auth.RefreshAsync(account.RefreshToken);
             var profile = await auth.LoginToMinecraftAsync(microsoftToken.AccessToken);
 
             store.Save(new AccountStore.AccountData
             {
+                ClientId = auth.ClientId,
                 RefreshToken = microsoftToken.RefreshToken,
                 MinecraftAccessToken = profile.AccessToken,
                 Uuid = profile.Uuid,
                 Name = profile.Name,
                 MinecraftExpiresAt = profile.ExpiresAt,
+                SkinUrl = profile.SkinUrl,
+                CapeUrl = profile.CapeUrl,
             });
 
             ShowToast($"使用正版账号 {profile.Name}");
             return (profile.Name, profile.Uuid, profile.AccessToken, "msa");
         }
-        catch
+        catch (Exception ex)
         {
-            ShowToast("正版令牌刷新失败，本次以离线身份启动");
-            return (offlineName, OfflineUuid(offlineName), "0", "legacy");
+            throw new InvalidOperationException("正版账号令牌刷新失败，游戏未启动。请重新登录。", ex);
         }
-    }
-
-    private static string OfflineUuid(string name)
-    {
-        var hash = MD5.HashData(Encoding.UTF8.GetBytes("OfflinePlayer:" + name));
-        hash[6] = (byte)((hash[6] & 0x0F) | 0x30);
-        hash[8] = (byte)((hash[8] & 0x3F) | 0x80);
-        return Convert.ToHexStringLower(hash);
     }
 
     // ── 拖放安装 ──

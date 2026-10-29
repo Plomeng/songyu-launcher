@@ -5,15 +5,21 @@ using System.Text;
 using Songyu.Core.Launch;
 using Songyu.Services;
 
-// M1 端到端验证：安装原版 1.20.1 → 拼参 → 启动 → 观察 45 秒是否存活。
-// 用法：M1Probe.exe [数据目录] [观察秒数]
+// M1 端到端验证：安装原版 1.20.1 → 使用已登录的正版账号启动 → 观察进程。
+// 用法：M1Probe.exe <数据目录> [观察秒数]
 
 Console.OutputEncoding = Encoding.UTF8;
 
 var useFabric = args.Contains("--fabric", StringComparer.OrdinalIgnoreCase);
 var useForge = args.Contains("--forge", StringComparer.OrdinalIgnoreCase);
 var positional = args.Where(a => !a.StartsWith("--", StringComparison.Ordinal)).ToArray();
-var root = positional.Length > 0 ? Path.GetFullPath(positional[0]) : @"F:\凇语MCloader\data";
+if (positional.Length == 0)
+{
+    Console.Error.WriteLine("用法：M1Probe.exe <数据目录> [观察秒数] [--launch=版本] [--fabric|--forge]");
+    return 2;
+}
+
+var root = Path.GetFullPath(positional[0]);
 var observeSeconds = positional.Length > 1 && int.TryParse(positional[1], out var s) ? s : 45;
 
 var paths = new MinecraftPaths(root);
@@ -108,15 +114,45 @@ else
 var gameDirectory = Path.Combine(paths.InstancesDir, "1.20.1");
 Directory.CreateDirectory(gameDirectory);
 
+var auth = new MicrosoftAuth(http, config.MicrosoftClientId);
+var accountStore = new AccountStore(paths);
+var account = accountStore.Load();
+if (!auth.IsConfigured || account is null ||
+    !string.Equals(account.ClientId, auth.ClientId, StringComparison.OrdinalIgnoreCase) ||
+    string.IsNullOrWhiteSpace(account.RefreshToken))
+{
+    Console.Error.WriteLine("启动需要本应用获批的 Client ID，以及通过该 ID 登录的正版账号。");
+    return 2;
+}
+
+if (account.MinecraftExpiresAt is not { } expires ||
+    expires <= DateTimeOffset.UtcNow.AddMinutes(5) ||
+    string.IsNullOrWhiteSpace(account.MinecraftAccessToken) ||
+    string.IsNullOrWhiteSpace(account.Uuid) ||
+    string.IsNullOrWhiteSpace(account.Name))
+{
+    var microsoftToken = await auth.RefreshAsync(account.RefreshToken);
+    var profile = await auth.LoginToMinecraftAsync(microsoftToken.AccessToken);
+    account.ClientId = auth.ClientId;
+    account.RefreshToken = microsoftToken.RefreshToken;
+    account.MinecraftAccessToken = profile.AccessToken;
+    account.Uuid = profile.Uuid;
+    account.Name = profile.Name;
+    account.MinecraftExpiresAt = profile.ExpiresAt;
+    account.SkinUrl = profile.SkinUrl;
+    account.CapeUrl = profile.CapeUrl;
+    accountStore.Save(account);
+}
+
 var options = new LaunchOptions
 {
     VersionId = versionId,
     GameDirectory = gameDirectory,
     JavaExecutable = java.JavaExePath,
-    PlayerName = "SongyuTest",
-    Uuid = OfflineUuid("SongyuTest"),
-    AccessToken = "0",
-    UserType = "legacy",
+    PlayerName = account.Name!,
+    Uuid = account.Uuid!,
+    AccessToken = account.MinecraftAccessToken!,
+    UserType = "msa",
     MaxMemoryMb = 2048,
     WindowWidth = 1280,
     WindowHeight = 720,
@@ -164,11 +200,3 @@ if (logFile is not null)
 }
 
 return process.HasExited && process.ExitCode != 0 ? 1 : 0;
-
-static string OfflineUuid(string name)
-{
-    var hash = System.Security.Cryptography.MD5.HashData(Encoding.UTF8.GetBytes("OfflinePlayer:" + name));
-    hash[6] = (byte)((hash[6] & 0x0F) | 0x30);
-    hash[8] = (byte)((hash[8] & 0x3F) | 0x80);
-    return Convert.ToHexStringLower(hash);
-}

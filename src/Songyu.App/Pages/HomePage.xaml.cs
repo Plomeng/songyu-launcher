@@ -216,8 +216,15 @@ public partial class HomePage : UserControl
             ? null
             : (VersionList.SelectedItem as InstanceRow);
 
-        SelectedVersionText.Text = row?.Name ?? "还没有选择实例";
-        LaunchButton.IsEnabled = row is not null;
+        var account = _services.CreateAccountStore().Load();
+        var auth = _services.CreateMicrosoftAuth();
+        var canLaunch = account is { Name.Length: > 0, RefreshToken.Length: > 0 } &&
+            auth.IsConfigured &&
+            string.Equals(account.ClientId, auth.ClientId,
+                StringComparison.OrdinalIgnoreCase);
+        SelectedVersionText.Text = row is null ? "还没有选择实例"
+            : canLaunch ? row.Name : "请先使用获批的 Client ID 登录";
+        LaunchButton.IsEnabled = row is not null && canLaunch;
     }
 
     private void OnVersionSelected(object sender, SelectionChangedEventArgs e)
@@ -243,7 +250,10 @@ public partial class HomePage : UserControl
         SkinPreviewEmpty.Text = "暂无皮肤";
         SkinPreviewEmpty.Visibility = Visibility.Visible;
         SkinPreviewLabel.Text = "未选择皮肤";
-        var signedIn = account?.Name is { Length: > 0 };
+        var auth = _services.CreateMicrosoftAuth();
+        var signedIn = account?.Name is { Length: > 0 } &&
+            !string.IsNullOrWhiteSpace(account.RefreshToken) && auth.IsConfigured &&
+            string.Equals(account.ClientId, auth.ClientId, StringComparison.OrdinalIgnoreCase);
         OfflineSkinActions.Visibility = signedIn ? Visibility.Collapsed : Visibility.Visible;
         OfflineSkinHintText.Visibility = signedIn ? Visibility.Collapsed : Visibility.Visible;
         OfflineSkinStatusText.Text = _services.SelectedOfflineSkinPath is { } selected
@@ -254,15 +264,15 @@ public partial class HomePage : UserControl
         if (account?.Name is { Length: > 0 } name)
         {
             AccountNameText.Text = name;
-            AccountTypeText.Text = "正版账号";
+            AccountTypeText.Text = signedIn ? "正版账号" : "登录已失效 · 请重新登录";
         }
         else
         {
-            AccountNameText.Text = string.IsNullOrWhiteSpace(_services.Config.PlayerName)
-                ? "Player"
-                : _services.Config.PlayerName;
-            AccountTypeText.Text = "离线账号";
+            AccountNameText.Text = "未登录";
+            AccountTypeText.Text = "游戏启动需要正版账号";
         }
+
+        UpdateLaunchState();
 
         _ = RefreshPreviewAsync(signedIn ? account?.SkinUrl : null,
             signedIn ? account?.CapeUrl : null, _previewCts.Token);
@@ -344,7 +354,7 @@ public partial class HomePage : UserControl
     {
         var dialog = new Microsoft.Win32.OpenFileDialog
         {
-            Title = "选择离线账号的预览皮肤",
+            Title = "选择本地预览皮肤",
             Filter = "皮肤图 (*.png)|*.png",
             InitialDirectory = _skins.SkinsDirectory,
         };
@@ -354,7 +364,7 @@ public partial class HomePage : UserControl
             var skin = await _skins.LoadFileAsync(dialog.FileName);
             await _services.SelectOfflineSkinAsync(skin);
             Refresh();
-            main.ShowToast("已设置离线账号的预览皮肤");
+            main.ShowToast("已设置本地预览皮肤");
         }
         catch (Exception ex) { main.ShowDialog("选择皮肤失败", ex.Message, allowCopy: true); }
     }

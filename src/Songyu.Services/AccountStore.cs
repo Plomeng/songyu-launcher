@@ -14,6 +14,8 @@ public sealed class AccountStore(MinecraftPaths paths)
 {
     public sealed class AccountData
     {
+        public string? ClientId { get; set; }
+
         public string? RefreshToken { get; set; }
 
         public string? MinecraftAccessToken { get; set; }

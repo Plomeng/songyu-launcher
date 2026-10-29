@@ -21,7 +21,7 @@ public sealed class LaunchOptions
 
     public string AccessToken { get; init; } = string.Empty;
 
-    /// <summary>msa（微软）/ legacy（离线）/ mojang（外置登录）。</summary>
+    /// <summary>当前只使用 msa（微软账号）。</summary>
     public string UserType { get; init; } = "msa";
 
     public int MaxMemoryMb { get; init; } = 2048;

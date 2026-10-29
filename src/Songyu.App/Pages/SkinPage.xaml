@@ -77,7 +77,7 @@
                                     Padding="10,0" Margin="8,0,0,0" Click="OnUseAccountSkinClick"/>
                             <Button Content="保存到皮肤库" Style="{StaticResource GhostButton}" Height="30"
                                     Padding="10,0" Margin="8,0,0,0" Click="OnSaveClick"/>
-                            <Button x:Name="SelectOfflineSkinButton" Content="设为离线预览皮肤"
+                            <Button x:Name="SelectOfflineSkinButton" Content="设为首页预览皮肤"
                                     Style="{StaticResource GhostButton}" Height="30"
                                     Padding="10,0" Margin="8,0,0,0" Click="OnSelectOfflineSkinClick"
                                     ToolTip="只改变启动器内的皮肤预览，不改变游戏内皮肤"/>

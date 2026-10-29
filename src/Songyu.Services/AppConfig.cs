@@ -39,27 +39,11 @@ public sealed class AppConfig
     /// <summary>仅在 <see cref="ProxyMode.Custom"/> 下生效，例如 http://127.0.0.1:7897。</summary>
     public string? HttpProxy { get; set; }
 
-    /// <summary>
-    /// 镜像根地址。默认用 BMCLAPI——官方 CDN 在国内直连经常断，镜像能让「能不能玩」这件事
-    /// 从碰运气变成稳定。填 null 或空串则只用官方源，官方永远是最后兜底。
-    /// <para>
-    /// 路径约定（与 BMCLAPI 一致）：<c>{root}/libraries/…</c>、<c>{root}/assets/…</c>、
-    /// <c>{root}/version/{id}/client</c>。
-    /// </para>
-    /// </summary>
-    public string? MirrorBaseUrl { get; set; } = "https://bmclapi2.bangbang93.com";
-
     /// <summary>并发下载数。官方 CDN 开太大容易触发限流，实测 8 稳定。</summary>
     public int Concurrency { get; set; } = 8;
 
     /// <summary>单请求超时秒数。设太长会让坏连接卡住整个队列。</summary>
     public int TimeoutSeconds { get; set; } = 120;
-
-    /// <summary>
-    /// 离线模式的玩家名。没有接登录系统时，用它生成离线 UUID 和游戏内名字。
-    /// 正版登录接入后这里只作为未登录时的默认值。
-    /// </summary>
-    public string PlayerName { get; set; } = "Player";
 
     /// <summary>离线账号在启动器内预览的皮肤文件名，位于本地 skins 目录。</summary>
     public string? OfflineSkinFileName { get; set; }
@@ -68,14 +52,9 @@ public sealed class AppConfig
     public string? OfflineSkinDisplayName { get; set; }
 
     /// <summary>
-    /// 微软登录用的 client id 池。按顺序尝试，前一个失效（unauthorized_client /
-    /// invalid_client）自动切下一个，全部失效才报错。
-    /// <para>
-    /// 之所以是列表而不是单个值：任何 client id 都可能哪天被停用，
-    /// 配了备用就不用等启动器更新。
-    /// </para>
+    /// 本应用自行注册并申请审核的唯一 Client ID。旧的 ID 列表不会自动迁移。
     /// </summary>
-    public List<string> MicrosoftClientIds { get; set; } = [];
+    public string? MicrosoftClientId { get; set; }
 
     private static readonly JsonSerializerOptions FileOptions = new()
     {
@@ -258,6 +237,5 @@ public sealed class AppConfig
     };
 
     /// <summary>给界面显示的一句人话描述。</summary>
-    public string DescribeSource() =>
-        string.IsNullOrWhiteSpace(MirrorBaseUrl) ? "官方源" : $"镜像优先 {MirrorBaseUrl}（官方兜底）";
+    public string DescribeSource() => "官方源";
 }

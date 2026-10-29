@@ -4,37 +4,14 @@ using System.Text.Json.Serialization;
 
 namespace Songyu.Core.Minecraft;
 
-/// <summary>
-/// 版本清单与版本 JSON 的获取。
-/// <para>
-/// 传入 <c>mirrorBaseUrl</c> 时把两个地址都改写到镜像（BMCLAPI 的布局是
-/// <c>{root}/mc/game/version_manifest_v2.json</c> 和 <c>{root}/version/{id}/json</c>）；
-/// 传 null 就走官方。镜像失败由调用方决定是否回退。
-/// </para>
-/// </summary>
-public sealed class VersionManifestClient(HttpClient http, string? mirrorBaseUrl = null)
+/// <summary>从 Mojang 官方地址获取版本清单与版本 JSON。</summary>
+public sealed class VersionManifestClient(HttpClient http)
 {
     public static readonly Uri ManifestUri = new("https://piston-meta.mojang.com/mc/game/version_manifest_v2.json");
 
-    private readonly string? _mirrorRoot = string.IsNullOrWhiteSpace(mirrorBaseUrl)
-        ? null
-        : mirrorBaseUrl.TrimEnd('/');
-
-    private Uri ManifestUriForCurrentSource => _mirrorRoot is null
-        ? ManifestUri
-        : new Uri($"{_mirrorRoot}/mc/game/version_manifest_v2.json");
-
     public async Task<VersionManifest> GetManifestAsync(CancellationToken cancellationToken = default)
     {
-        try
-        {
-            return await GetManifestOnceAsync(ManifestUriForCurrentSource, cancellationToken);
-        }
-        catch (Exception ex) when (_mirrorRoot is not null && ex is not OperationCanceledException)
-        {
-            // 镜像挂了（502/超时）不能让整个启动器不可用，直接回官方
-            return await GetManifestOnceAsync(ManifestUri, cancellationToken);
-        }
+        return await GetManifestOnceAsync(ManifestUri, cancellationToken);
     }
 
     private async Task<VersionManifest> GetManifestOnceAsync(Uri uri, CancellationToken cancellationToken)
@@ -60,26 +37,11 @@ public sealed class VersionManifestClient(HttpClient http, string? mirrorBaseUrl
 
     public async Task<VersionJson> GetVersionAsync(MinecraftVersion version, CancellationToken cancellationToken = default)
     {
-        string json;
-
-        try
-        {
-            json = await http.GetStringAsync(VersionUrl(version), cancellationToken);
-        }
-        catch (Exception ex) when (_mirrorRoot is not null && ex is not OperationCanceledException)
-        {
-            json = await http.GetStringAsync(version.Url, cancellationToken);
-        }
+        var json = await http.GetStringAsync(version.Url, cancellationToken);
 
         return JsonSerializer.Deserialize<VersionJson>(json, SongyuJson.Options)
                ?? throw new InvalidOperationException($"版本 {version.Id} 的 JSON 解析失败。");
     }
-
-    /// <summary>清单里的 url 指向 Mojang，启用镜像时换成镜像的同名接口。</summary>
-    private Uri VersionUrl(MinecraftVersion version)
-        => _mirrorRoot is null
-            ? version.Url
-            : new Uri($"{_mirrorRoot}/version/{Uri.EscapeDataString(version.Id)}/json");
 
     private sealed class ManifestDto
     {

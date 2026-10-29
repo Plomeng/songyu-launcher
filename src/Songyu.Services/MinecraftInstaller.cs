@@ -9,8 +9,7 @@ namespace Songyu.Services;
 /// <summary>
 /// 版本安装：拉清单 → 落 version json → 下载 jar / libraries / assets / log 配置。
 /// <para>
-/// 只认 Mojang 官方地址；如果用户在配置里给了镜像根地址，则镜像优先、官方兜底。
-/// 程序自身不内置任何第三方地址。
+/// 游戏文件使用 Mojang 提供的地址下载。
 /// </para>
 /// </summary>
 public sealed class MinecraftInstaller
@@ -35,22 +34,8 @@ public sealed class MinecraftInstaller
         _http = http;
         _paths = paths;
         _concurrency = Math.Max(1, config?.Concurrency ?? 8);
-        _downloader = new FileDownloader(http, BuildSources(config)) { Trace = trace };
-        _manifestClient = new VersionManifestClient(http, config?.MirrorBaseUrl);
-    }
-
-    private static IReadOnlyList<IDownloadSource> BuildSources(AppConfig? config)
-    {
-        var sources = new List<IDownloadSource>();
-
-        if (!string.IsNullOrWhiteSpace(config?.MirrorBaseUrl) &&
-            Uri.TryCreate(config.MirrorBaseUrl, UriKind.Absolute, out _))
-        {
-            sources.Add(new MirrorSource(config.MirrorBaseUrl));
-        }
-
-        sources.Add(new OfficialSource());
-        return sources;
+        _downloader = new FileDownloader(http) { Trace = trace };
+        _manifestClient = new VersionManifestClient(http);
     }
 
     public async Task<string> InstallAsync(
@@ -75,7 +60,7 @@ public sealed class MinecraftInstaller
                       ?? throw new InvalidOperationException($"版本清单里没有找到 {versionId}。");
 
         Report(progress, new InstallProgress("获取版本信息", 0, 0, null));
-        var jsonText = await GetStringWithFallbackAsync(version, "version_manifest_v2.json", cancellationToken);
+        var jsonText = await _http.GetStringAsync(version.Url, cancellationToken);
         var versionDir = _paths.VersionDir(versionId);
         Directory.CreateDirectory(versionDir);
         await File.WriteAllTextAsync(_paths.VersionJsonPath(versionId), jsonText, cancellationToken);
@@ -140,30 +125,6 @@ public sealed class MinecraftInstaller
 
         Report(progress, new InstallProgress("安装完成", 1, 1, versionId, _meter.BytesPerSecond));
         return versionDir;
-    }
-
-    /// <summary>版本 JSON 不在镜像的标准路径里，这里按「镜像能解析就用，否则直接官方」处理。</summary>
-    private async Task<string> GetStringWithFallbackAsync(
-        MinecraftVersion version,
-        string relativePath,
-        CancellationToken cancellationToken)
-    {
-        foreach (var source in BuildSources(null))
-        {
-            if (source.Resolve(DownloadKind.VersionJson, relativePath) is { } uri)
-            {
-                try
-                {
-                    return await _http.GetStringAsync(uri, cancellationToken);
-                }
-                catch
-                {
-                    // 落到官方
-                }
-            }
-        }
-
-        return await _http.GetStringAsync(version.Url, cancellationToken);
     }
 
     private List<ResourceSpec> CollectLibraries(VersionJson json, RuleContext context)
@@ -284,7 +245,6 @@ public sealed class MinecraftInstaller
     public const string NetworkHint =
         "无法连接 Mojang 服务器。请依次检查：\n" +
         "1) 如果你使用代理软件，打开它的「系统代理」开关后重试（程序默认跟随系统代理）；\n" +
-        "2) 或在 data/config.json 中把 \"ProxyMode\" 设为 \"Custom\"，并在 \"HttpProxy\" 填入地址，例如 http://127.0.0.1:7897；\n" +
-        "3) 如果你的网络绕不开限制，可以在 \"MirrorBaseUrl\" 填一个可用镜像的根地址后重试。\n" +
-        "程序不会自动使用任何第三方镜像。";
+        "2) 或在 data/config.json 中把 \"ProxyMode\" 设为 \"Custom\"，并在 \"HttpProxy\" 填入你使用的代理地址。\n" +
+        "游戏文件仅从官方地址下载。";
 }

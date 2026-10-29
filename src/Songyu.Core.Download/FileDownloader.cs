@@ -15,11 +15,7 @@ public enum DownloadOutcome
 public sealed class DownloadException(string message, Exception? inner = null) : Exception(message, inner);
 
 /// <summary>
-/// 资源下载器。M2 的三件事：多源回退、断点续传、速度统计。
-/// <para>
-/// 候选地址的顺序是「镜像优先，官方兜底」——镜像来自用户配置，
-/// 程序自身不内置任何第三方地址。某个源彻底失败才换下一个。
-/// </para>
+/// 资源下载器：从元数据提供的地址下载，支持断点续传和速度统计。
 /// </summary>
 public sealed class FileDownloader(HttpClient http, IReadOnlyList<IDownloadSource>? sources = null)
 {

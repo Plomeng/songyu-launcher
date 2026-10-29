@@ -182,7 +182,7 @@ public partial class DownloadPage : UserControl
 
         try
         {
-            var client = new VersionManifestClient(_services.Http, _services.Config.MirrorBaseUrl);
+            var client = new VersionManifestClient(_services.Http);
             var manifest = await client.GetManifestAsync();
             _versions = manifest.Versions;
             _loaded = true;

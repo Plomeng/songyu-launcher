@@ -15,6 +15,8 @@
   <ItemGroup>
     <Resource Include="Assets\app.ico" />
     <Resource Include="Assets\Fonts\*.ttf" />
+    <Content Include="Assets\Fonts\*.OFL.txt" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\LICENSE" Link="LICENSE" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <!-- 皮肤 3D 预览的前端资源，原样复制到输出目录，运行时用虚拟主机加载 -->

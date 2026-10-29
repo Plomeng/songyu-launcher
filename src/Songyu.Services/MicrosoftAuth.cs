@@ -38,10 +38,7 @@ public sealed record MinecraftProfile(
 /// <para>
 /// 用的是设备码（device code）流程：适合桌面程序，不需要内嵌浏览器或处理回调端口。
 /// </para>
-/// <para>
-/// client id 支持一组而不是一个：某个被停用（unauthorized_client / invalid_client）时
-/// 自动换下一个，全部失效才报错。轮询必须用申请设备码时的同一个 id，否则微软会拒绝。
-/// </para>
+/// <para>设备码、令牌和刷新令牌始终使用本应用自己的同一个 client id。</para>
 /// </summary>
 public sealed class MicrosoftAuth
 {
@@ -73,84 +70,28 @@ public sealed class MicrosoftAuth
         new(JsonSerializerDefaults.Web);
 
     private readonly HttpClient _http;
-    private readonly string[] _clientIds;
+    private readonly string _clientId;
 
-    private int _index;
-    private string _active = string.Empty;
-
-    public MicrosoftAuth(HttpClient http, IEnumerable<string> clientIds)
+    public MicrosoftAuth(HttpClient http, string? clientId)
     {
         _http = http;
-        _clientIds = (clientIds ?? [])
-            .Where(id => !string.IsNullOrWhiteSpace(id))
-            .Select(id => id.Trim())
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
+        _clientId = Guid.TryParse(clientId, out var parsed) && parsed != Guid.Empty
+            ? parsed.ToString("D")
+            : string.Empty;
     }
 
-    /// <summary>池里至少有一个 id 才能登录。</summary>
-    public bool IsConfigured => _clientIds.Length > 0;
+    public bool IsConfigured => _clientId.Length > 0;
 
-    /// <summary>当前在用的是池里第几个（从 1 开始），给界面显示用。</summary>
-    public int CurrentIndex => _clientIds.Length == 0 ? 0 : _index + 1;
+    public string ClientId => _clientId;
 
-    public int Total => _clientIds.Length;
-
-    /// <summary>
-    /// 已经成功申请到设备码的那个 id。
-    /// 轮询令牌必须用同一个 id，否则微软会报 device_code 不匹配。
-    /// </summary>
-    public string ActiveClientId => _active;
-
-    /// <summary>
-    /// 第一步：申请设备码。
-    /// <para>
-    /// 按池顺序尝试：某个 id 返回 unauthorized_client / invalid_client（被停用、写错、租户不对）
-    /// 就自动切下一个，直到有人给出设备码。全部失败才抛错，并带上最后一个原因。
-    /// </para>
-    /// </summary>
+    /// <summary>第一步：使用本应用的 client id 申请设备码。</summary>
     public async Task<DeviceCodeInfo> StartDeviceCodeAsync(CancellationToken cancellationToken = default)
     {
         if (!IsConfigured)
         {
-            throw new InvalidOperationException("还没有配置任何 client id。");
+            throw new InvalidOperationException("请先配置本应用的 Client ID。");
         }
-
-        Exception? last = null;
-        var attempted = 0;
-
-        while (attempted < _clientIds.Length)
-        {
-            var candidate = _clientIds[_index];
-
-            try
-            {
-                var info = await RequestDeviceCodeAsync(candidate, cancellationToken);
-                _active = candidate;
-                return info;
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                // 连不上服务器时不要换 id：换再多也一样连不上，
-                // 而且会让人以为是 id 的问题，实际该查的是网络和代理。
-                if (ex is HttpRequestException or TaskCanceledException)
-                {
-                    throw new InvalidOperationException(
-                        $"连不上微软登录服务器：{ex.Message}\n\n" +
-                        "这是网络或代理问题，跟 client id 无关。检查一下：\n" +
-                        "· 代理软件是否在运行\n" +
-                        "· 设置里的代理方式是否和实际情况一致（跟随系统 / 自定义 / 不使用）",
-                        ex);
-                }
-
-                last = ex;
-                attempted++;
-                _index = (_index + 1) % _clientIds.Length;
-            }
-        }
-
-        throw new InvalidOperationException(
-            $"{_clientIds.Length} 个 client id 全部失效。最后一个错误：{last?.Message}", last);
+        return await RequestDeviceCodeAsync(_clientId, cancellationToken);
     }
 
     private async Task<DeviceCodeInfo> RequestDeviceCodeAsync(string clientId, CancellationToken cancellationToken)
@@ -188,7 +129,7 @@ public sealed class MicrosoftAuth
 
             using var content = new FormUrlEncodedContent(new Dictionary<string, string>
             {
-                ["client_id"] = _active,
+                ["client_id"] = _clientId,
                 ["grant_type"] = "urn:ietf:params:oauth:grant-type:device_code",
                 ["device_code"] = deviceCode.DeviceCode,
             });
@@ -232,11 +173,14 @@ public sealed class MicrosoftAuth
 
     public async Task<MicrosoftToken> RefreshAsync(string refreshToken, CancellationToken cancellationToken = default)
     {
-        var clientId = string.IsNullOrEmpty(_active) ? _clientIds.FirstOrDefault() ?? string.Empty : _active;
+        if (!IsConfigured)
+        {
+            throw new InvalidOperationException("请先配置本应用的 Client ID。");
+        }
 
         using var content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
-            ["client_id"] = clientId,
+            ["client_id"] = _clientId,
             ["grant_type"] = "refresh_token",
             ["refresh_token"] = refreshToken,
             ["scope"] = Scope,
@@ -519,6 +463,12 @@ public sealed class MicrosoftAuth
 
         if (!response.IsSuccessStatusCode)
         {
+            if (step == "Minecraft 登录" && response.StatusCode == HttpStatusCode.Forbidden &&
+                body.Contains("Invalid app registration", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    "本应用的 Client ID 尚未获准访问 Minecraft 服务。注册 Azure 应用本身不足以开通该接口。");
+            }
             throw new InvalidOperationException($"{step}失败：HTTP {(int)response.StatusCode} {body}");
         }
 

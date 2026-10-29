@@ -3,10 +3,7 @@
 #   .\build.ps1              发布到 .\app
 #   .\build.ps1 -Output out  发布到 .\out
 #
-# 为什么不用单文件：
-#   单文件 exe 每次启动都要把上百个 dll 释放到 %TEMP%，这一步很容易被
-#   Defender 的实时保护拦截，表现为退出码 0x8000809F（ResolveHostfxrCopyFailure）。
-#   目录形式直接加载同目录的 dll，不释放、不写临时目录，启动也更快。
+# 使用目录形式，便于检查和替换各个运行时文件。
 #
 # 为什么必须 self-contained：
 #   目标机器可能只装了旧版 .NET 运行时，双击依赖 .NET 10 的 exe 会直接
@@ -38,7 +35,7 @@ if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
-# 附带启动器：直接调用 exe，避开 SmartScreen 对未签名程序的拦截
+# 附带命令行入口，便于显示启动失败时的退出码
 $launcherSource = Join-Path $root "启动.cmd"
 if (Test-Path $launcherSource)
 {

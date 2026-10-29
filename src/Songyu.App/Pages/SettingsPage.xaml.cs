@@ -31,8 +31,7 @@ public partial class SettingsPage : UserControl
         {
             var path = Path.Combine(_services.Paths.Root, "config.json");
             var onDisk = AppConfig.Load(path);
-            _services.Config.MicrosoftClientIds = onDisk.MicrosoftClientIds;
-            _services.Config.PlayerName = onDisk.PlayerName;
+            _services.Config.MicrosoftClientId = onDisk.MicrosoftClientId;
         }
         catch
         {
@@ -41,10 +40,8 @@ public partial class SettingsPage : UserControl
 
         var config = _services.Config;
 
-        PlayerNameBox.Text = config.PlayerName;
         ProxyBox.Text = config.HttpProxy ?? string.Empty;
-        MirrorBox.Text = config.MirrorBaseUrl ?? string.Empty;
-        ClientIdBox.Text = string.Join(Environment.NewLine, config.MicrosoftClientIds);
+        ClientIdBox.Text = config.MicrosoftClientId ?? string.Empty;
         ConcurrencyBox.Text = config.Concurrency.ToString();
 
         ProxyModeCombo.SelectedIndex = config.ProxyMode switch
@@ -78,8 +75,12 @@ public partial class SettingsPage : UserControl
             return;
         }
 
-        AccountStatusText.Text = $"已登录：{account.Name}";
-        LoginButton.Visibility = Visibility.Collapsed;
+        var auth = _services.CreateMicrosoftAuth();
+        var current = auth.IsConfigured && !string.IsNullOrWhiteSpace(account.RefreshToken) &&
+            string.Equals(account.ClientId, auth.ClientId, StringComparison.OrdinalIgnoreCase);
+        AccountStatusText.Text = current ? $"已登录：{account.Name}" :
+            $"旧登录不能用于当前 Client ID：{account.Name}。请重新登录。";
+        LoginButton.Visibility = current ? Visibility.Collapsed : Visibility.Visible;
         LogoutButton.Visibility = Visibility.Visible;
     }
 
@@ -113,7 +114,7 @@ public partial class SettingsPage : UserControl
 
         var confirmed = await main.ShowConfirmAsync(
             "退出登录",
-            "退出后本地保存的登录凭据会被删除，之后只能用离线账号。",
+            "退出后本地保存的登录凭据会被删除，重新登录前无法启动游戏。",
             "退出登录",
             "取消");
 
@@ -144,10 +145,10 @@ public partial class SettingsPage : UserControl
 
         var config = _services.Config;
 
-        var playerName = PlayerNameBox.Text.Trim();
-        if (playerName.Length == 0)
+        var clientId = ClientIdBox.Text.Trim();
+        if (clientId.Length > 0 && (!Guid.TryParse(clientId, out var parsedId) || parsedId == Guid.Empty))
         {
-            main.ShowDialog("玩家名不能为空", "请填一个游戏内显示的名字。");
+            main.ShowDialog("Client ID 无效", "请填写单个有效的应用程序 Client ID，或暂时留空。");
             return;
         }
 
@@ -157,17 +158,12 @@ public partial class SettingsPage : UserControl
             return;
         }
 
-        config.PlayerName = playerName;
         config.Concurrency = concurrency;
         config.ProxyMode = (ProxyModeCombo.SelectedItem as ComboBoxItem)?.Tag is ProxyMode mode
             ? mode
             : ProxyMode.System;
         config.HttpProxy = string.IsNullOrWhiteSpace(ProxyBox.Text) ? null : ProxyBox.Text.Trim();
-        config.MirrorBaseUrl = string.IsNullOrWhiteSpace(MirrorBox.Text) ? null : MirrorBox.Text.Trim();
-        config.MicrosoftClientIds = ClientIdBox.Text
-            .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        config.MicrosoftClientId = clientId.Length == 0 ? null : Guid.Parse(clientId).ToString("D");
 
         try
         {
@@ -190,16 +186,9 @@ public partial class SettingsPage : UserControl
 
         main.ShowDialog(
             "怎么获取 Client ID",
-            "微软已经下线了 Minecraft 官方的公开 id，登录必须用你自己注册的 Azure 应用。\n\n" +
-            "1. 浏览器打开 https://portal.azure.com ，用微软账号登录\n" +
-            "2. 搜索「应用注册」→ 点「新注册」\n" +
-            "3. 名称随便填（比如 songyu-launcher）\n" +
-            "   受支持的账户类型选「仅个人 Microsoft 账户」\n" +
-            "   重定向 URI 留空即可\n" +
-            "4. 注册完成后，页面上会显示「应用程序(客户端) ID」，复制它\n" +
-            "5. 左侧「身份验证」→ 拉到最下面，把「允许公共客户端流」设为「是」，保存\n" +
-            "6. 回到这里把 ID 填进上面那个框，点保存\n\n" +
-            "这一步只做一次。免费，不需要绑卡。");
+            "开发者需注册本应用自己的 Azure 公共客户端，并向 Minecraft 服务申请 AppID allow list。\n\n" +
+            "仅注册 Azure 应用不能开通 Minecraft API。审核获批后，在这里填写该应用的单个 Client ID。\n\n" +
+            "不要填写其他应用的 ID。未获批前可管理版本和预览本地皮肤，但不能启动游戏。");
     }
 
     private void OnOpenDataClick(object sender, RoutedEventArgs e) => Open(_services.Paths.Root);

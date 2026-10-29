@@ -16,6 +16,7 @@
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
             <Border x:Name="JavaWarning" Visibility="Collapsed" Background="#FFF6DF"
@@ -98,6 +99,9 @@
                                Foreground="{StaticResource InkSoft}" Margin="0,8,0,0" HorizontalAlignment="Center"/>
                 </StackPanel>
             </Grid>
+            <TextBlock Grid.Row="3" Margin="2,8,0,0" FontSize="10" TextWrapping="Wrap"
+                       Foreground="{StaticResource InkSoft}"
+                       Text="非官方 Minecraft 启动器；未经 Mojang 或 Microsoft 批准，也与其无关联。"/>
         </Grid>
 
         <!-- 右：启动区 -->
@@ -173,7 +177,7 @@
                     </Grid.ColumnDefinitions>
                     <TextBlock x:Name="OfflineSkinStatusText" FontSize="11" VerticalAlignment="Center"
                                Foreground="{StaticResource InkSoft}" TextTrimming="CharacterEllipsis"/>
-                <Button x:Name="ChooseOfflineSkinButton" Content="选择离线皮肤…"
+                <Button x:Name="ChooseOfflineSkinButton" Content="选择本地预览皮肤…"
                         Grid.Column="1" Style="{StaticResource GhostButton}" Height="28" Padding="8,0"
                         Margin="6,0,0,0" Click="OnChooseOfflineSkinClick"
                         ToolTip="只改变启动器内的皮肤预览，不改变游戏内皮肤"/>

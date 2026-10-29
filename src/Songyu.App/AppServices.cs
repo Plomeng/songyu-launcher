@@ -67,7 +67,7 @@ public sealed class AppServices
 
     public ModpackInstaller CreateModpackInstaller() => new(Http, Paths, Config, Content);
 
-    public MicrosoftAuth CreateMicrosoftAuth() => new(Http, Config.MicrosoftClientIds);
+    public MicrosoftAuth CreateMicrosoftAuth() => new(Http, Config.MicrosoftClientId);
 
     public AccountStore CreateAccountStore() => new(Paths);
 

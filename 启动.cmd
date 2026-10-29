@@ -7,7 +7,6 @@ if not exist "Songyu.exe" goto missing
 echo 正在启动凇语 MCloader ...
 echo.
 
-rem 直接调用（不经资源管理器），可避开 SmartScreen 对未签名 exe 的拦截。
 "Songyu.exe"
 
 set code=%ERRORLEVEL%

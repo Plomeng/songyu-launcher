@@ -16,6 +16,13 @@ public sealed class LaunchService(MinecraftPaths paths)
         LaunchOptions options,
         CancellationToken cancellationToken = default)
     {
+        if (!string.Equals(options.UserType, "msa", StringComparison.Ordinal) ||
+            string.IsNullOrWhiteSpace(options.AccessToken) || options.AccessToken == "0" ||
+            string.IsNullOrWhiteSpace(options.Uuid))
+        {
+            throw new InvalidOperationException("游戏启动需要有效的正版账号身份；离线身份启动已暂停。");
+        }
+
         var jsonPath = paths.VersionJsonPath(versionId);
         if (!File.Exists(jsonPath))
         {

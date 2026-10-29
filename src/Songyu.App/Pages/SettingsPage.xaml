@@ -19,7 +19,7 @@
                     </StackPanel>
                     <TextBlock Margin="0,10,0,0" FontSize="11" Foreground="{StaticResource InkSoft}"
                                TextWrapping="Wrap"
-                               Text="登录后可以用正版身份进服务器；也可以一直用下面的离线名字玩单机。"/>
+                               Text="游戏启动需要拥有 Minecraft: Java Edition 的微软账号，以及本应用已获批的 Client ID。"/>
 
                     <Grid Margin="0,12,0,0">
                         <Grid.ColumnDefinitions>
@@ -31,25 +31,15 @@
                         <TextBlock Text="Client ID" FontSize="12" VerticalAlignment="Top" Margin="0,6,0,0"
                                    Foreground="{StaticResource InkSoft}"/>
                         <TextBox x:Name="ClientIdBox" Grid.Column="1" HorizontalAlignment="Left" Width="300"
-                                 Height="84" AcceptsReturn="True" TextWrapping="NoWrap"
-                                 VerticalScrollBarVisibility="Auto"
-                                 VerticalContentAlignment="Top" Padding="8,6" FontFamily="Consolas"/>
+                                 Height="34" TextWrapping="NoWrap"
+                                 VerticalContentAlignment="Center" Padding="8,6" FontFamily="Consolas"/>
                         <Button Grid.Column="2" Content="怎么获取" Style="{StaticResource GhostButton}"
                                 Margin="8,0,0,0" VerticalAlignment="Top" Click="OnClientIdHelpClick"/>
                     </Grid>
 
                     <TextBlock Margin="0,8,0,0" FontSize="11" Foreground="{StaticResource InkSoft}"
                                TextWrapping="Wrap"
-                               Text="每行一个，第一个优先。某个失效会自动换下一个，全部失效才报错。"/>
-                </StackPanel>
-            </Border>
-
-            <Border Background="{StaticResource CardBg}" CornerRadius="12" Padding="20,16" Margin="0,0,0,10">
-                <StackPanel>
-                    <TextBlock Text="离线账号" FontSize="13" FontWeight="SemiBold"/>
-                    <TextBlock Margin="0,10,0,0" FontSize="11" Foreground="{StaticResource InkSoft}"
-                               Text="没登录正版时用这个名字进游戏。改完需要重新启动游戏。"/>
-                    <TextBox x:Name="PlayerNameBox" Width="220" HorizontalAlignment="Left" Margin="0,10,0,0"/>
+                               Text="仅填写本应用自己的、已通过 Minecraft 服务审核的单个 Client ID。未获批前保持留空。"/>
                 </StackPanel>
             </Border>
 
@@ -63,8 +53,6 @@
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
@@ -84,19 +72,11 @@
                         <TextBox x:Name="ConcurrencyBox" Grid.Row="2" Grid.Column="1" Margin="0,10,0,0"
                                  Width="90" HorizontalAlignment="Left"/>
 
-                        <TextBlock Grid.Row="3" Text="下载源" FontSize="12" Margin="0,10,0,0"
-                                   VerticalAlignment="Center" Foreground="{StaticResource InkSoft}"/>
-                        <TextBox x:Name="MirrorBox" Grid.Row="3" Grid.Column="1" Margin="0,10,0,0"
-                                 Width="320" HorizontalAlignment="Left"/>
-
-                        <TextBlock Grid.Row="4" Grid.Column="1" Margin="0,6,0,0" FontSize="11"
-                                   Foreground="{StaticResource InkSoft}" TextWrapping="Wrap"
-                                   Text="默认 BMCLAPI 镜像，官方源始终兜底。留空则只用官方（国内直连可能不稳）。"/>
                     </Grid>
 
                     <TextBlock Margin="0,10,0,0" FontSize="11" Foreground="{StaticResource InkSoft}"
                                TextWrapping="Wrap"
-                               Text="代理地址只在「自定义代理」下生效，形如 http://127.0.0.1:7897。并发数建议 8，太高容易被 CDN 限流。"/>
+                               Text="游戏文件只从官方地址下载。代理地址只在「自定义代理」下生效；并发数建议 8。"/>
                 </StackPanel>
             </Border>
 

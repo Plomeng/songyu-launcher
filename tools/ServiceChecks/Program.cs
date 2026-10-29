@@ -1,5 +1,6 @@
 using System.IO;
 using fNbt;
+using Songyu.Core.Launch;
 using Songyu.Services;
 
 var root = Path.Combine(Path.GetFullPath(args.FirstOrDefault() ?? ".tmp-probe"), Guid.NewGuid().ToString("N"));
@@ -10,6 +11,30 @@ void Check(bool condition, string message)
     if (!condition) { throw new Exception(message); }
     Console.WriteLine($"PASS: {message}");
 }
+
+var launcher = new LaunchService(paths);
+foreach (var (userType, token) in new[] { ("legacy", "0"), ("msa", "") })
+{
+    try
+    {
+        await launcher.LaunchAsync("not-installed", new LaunchOptions
+        {
+            VersionId = "not-installed",
+            GameDirectory = root,
+            JavaExecutable = "java",
+            UserType = userType,
+            Uuid = "test",
+            AccessToken = token,
+        });
+        throw new Exception("Launch accepted an identity without a Minecraft token");
+    }
+    catch (InvalidOperationException ex) when (ex.Message.Contains("离线身份启动已暂停")) { }
+}
+Check(true, "Game launch rejects offline and empty-token identities");
+using var authHttp = new HttpClient();
+Check(!new MicrosoftAuth(authHttp, null).IsConfigured &&
+      !new MicrosoftAuth(authHttp, "not-a-guid").IsConfigured,
+    "Sign-in requires one well-formed application ID");
 
 Check((await service.ReadAsync("test")).Count == 0, "Missing server list is empty");
 GameServer[] entries = [new("中文服务器 🌲", "localhost:25565", false), new("Private", "example.invalid", true)];

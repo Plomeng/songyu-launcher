@@ -302,8 +302,8 @@ public partial class SkinPage : UserControl
         var selected = _services.SelectedOfflineSkinPath;
         SelectOfflineSkinButton.Content = _skin is not null && selected is not null &&
             string.Equals(_skin.Source, selected, StringComparison.OrdinalIgnoreCase)
-                ? "当前离线预览皮肤 ✓"
-                : "设为离线预览皮肤";
+                ? "当前首页预览皮肤 ✓"
+                : "设为首页预览皮肤";
     }
 
     private async Task PushSkinAsync()
@@ -480,9 +480,9 @@ public partial class SkinPage : UserControl
             _skin = _skin with { Source = selected };
             UpdateOfflineSelectionLabel();
             main.RefreshAllPages();
-            main.ShowToast("已设置离线账号的预览皮肤");
+            main.ShowToast("已设置首页预览皮肤");
         }
-        catch (Exception ex) { main.ShowDialog("设置离线皮肤失败", ex.Message, allowCopy: true); }
+        catch (Exception ex) { main.ShowDialog("设置首页预览皮肤失败", ex.Message, allowCopy: true); }
     }
 
     private async void OnLibrarySelected(object sender, SelectionChangedEventArgs e)
